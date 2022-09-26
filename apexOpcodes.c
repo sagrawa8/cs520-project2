@@ -50,6 +50,14 @@ void dss_decode(cpu cpu) {
 	check_dest(cpu);
 }
 
+void dsi_decode(cpu cpu) {
+	cpu->stage[decode].status=stage_noAction;
+	fetch_register1(cpu);
+	fetch_register2(cpu);
+	check_dest(cpu);
+}
+
+
 void movc_decode(cpu cpu) {
 	cpu->stage[decode].status=stage_noAction;
 	check_dest(cpu);
@@ -61,6 +69,12 @@ void movc_decode(cpu cpu) {
 void add_execute(cpu cpu) {
 	cpu->stage[execute].result=cpu->stage[execute].op1+cpu->stage[execute].op2;
 	reportStage(cpu,execute,"res=%d+%d",cpu->stage[execute].op1,cpu->stage[execute].op2);
+	set_conditionCodes(cpu);
+}
+
+void addl_execute(cpu cpu) {
+	cpu->stage[execute].result=cpu->stage[execute].op1+cpu->stage[execute].imm;
+	reportStage(cpu,execute,"res=%d+%d",cpu->stage[execute].op1,cpu->stage[execute].imm);
 	set_conditionCodes(cpu);
 }
 
@@ -95,6 +109,7 @@ void halt_writeback(cpu cpu) {
 void registerAllOpcodes() {
 	// Invoke registerOpcode for EACH valid opcode here
 	registerOpcode(ADD,dss_decode,add_execute,NULL,dest_writeback);
+	registerOpcode(ADDL,dsi_decode,addl_execute,NULL,dest_writeback);
 	registerOpcode(MOVC,movc_decode,movc_execute,NULL,dest_writeback);
 	registerOpcode(HALT,NULL,NULL,NULL,halt_writeback);
 }
