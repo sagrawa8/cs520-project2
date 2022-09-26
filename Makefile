@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -Wall -std=c18 -ggdb
-PGM = example
+PGM = basic
 
 test : apexSim ${PGM}.o
 	./apexSim ${PGM}.o
