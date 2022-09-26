@@ -22,8 +22,18 @@ enum opFormat_enum {
   NOTE: Must be 1-1 with opInfo array below!
 ---------------------------------------------------------*/
 enum opcode_enum {
+	NOP,
 	ADD,
+	ADDL,
+	SUB,
+	SUBL,
+	MUL,
+	AND,
+	OR,
+	XOR,	
 	MOVC,
+	LOAD,
+	STORE,
 	HALT
 };
 
