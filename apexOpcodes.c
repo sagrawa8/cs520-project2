@@ -53,10 +53,8 @@ void dss_decode(cpu cpu) {
 void dsi_decode(cpu cpu) {
 	cpu->stage[decode].status=stage_noAction;
 	fetch_register1(cpu);
-	fetch_register2(cpu);
 	check_dest(cpu);
 }
-
 
 void movc_decode(cpu cpu) {
 	cpu->stage[decode].status=stage_noAction;
@@ -75,6 +73,43 @@ void add_execute(cpu cpu) {
 void addl_execute(cpu cpu) {
 	cpu->stage[execute].result=cpu->stage[execute].op1+cpu->stage[execute].imm;
 	reportStage(cpu,execute,"res=%d+%d",cpu->stage[execute].op1,cpu->stage[execute].imm);
+	set_conditionCodes(cpu);
+}
+
+
+void sub_execute(cpu cpu) {
+	cpu->stage[execute].result=cpu->stage[execute].op1-cpu->stage[execute].op2;
+	reportStage(cpu,execute,"res=%d+%d",cpu->stage[execute].op1,cpu->stage[execute].op2);
+	set_conditionCodes(cpu);
+}
+
+void subl_execute(cpu cpu) {
+	cpu->stage[execute].result=cpu->stage[execute].op1-cpu->stage[execute].imm;
+	reportStage(cpu,execute,"res=%d+%d",cpu->stage[execute].op1,cpu->stage[execute].imm);
+	set_conditionCodes(cpu);
+}
+
+void mul_execute(cpu cpu) {
+	cpu->stage[execute].result=cpu->stage[execute].op1*cpu->stage[execute].op2;
+	reportStage(cpu,execute,"res=%d+%d",cpu->stage[execute].op1,cpu->stage[execute].op2);
+	set_conditionCodes(cpu);
+}
+
+void and_execute(cpu cpu) {
+	cpu->stage[execute].result=cpu->stage[execute].op1&cpu->stage[execute].op2;
+	reportStage(cpu,execute,"res=%d+%d",cpu->stage[execute].op1,cpu->stage[execute].op2);
+	set_conditionCodes(cpu);
+}
+
+void or_execute(cpu cpu) {
+	cpu->stage[execute].result=cpu->stage[execute].op1|cpu->stage[execute].op2;
+	reportStage(cpu,execute,"res=%d+%d",cpu->stage[execute].op1,cpu->stage[execute].op2);
+	set_conditionCodes(cpu);
+}
+
+void xor_execute(cpu cpu) {
+	cpu->stage[execute].result=cpu->stage[execute].op1^cpu->stage[execute].op2;
+	reportStage(cpu,execute,"res=%d+%d",cpu->stage[execute].op1,cpu->stage[execute].op2);
 	set_conditionCodes(cpu);
 }
 
@@ -110,6 +145,12 @@ void registerAllOpcodes() {
 	// Invoke registerOpcode for EACH valid opcode here
 	registerOpcode(ADD,dss_decode,add_execute,NULL,dest_writeback);
 	registerOpcode(ADDL,dsi_decode,addl_execute,NULL,dest_writeback);
+	registerOpcode(SUB,dss_decode,sub_execute,NULL,dest_writeback);
+	registerOpcode(SUBL,dsi_decode,subl_execute,NULL,dest_writeback);
+	registerOpcode(MUL,dss_decode,mul_execute,NULL,dest_writeback);
+	registerOpcode(AND,dss_decode,and_execute,NULL,dest_writeback);
+	registerOpcode(OR,dss_decode,or_execute,NULL,dest_writeback);
+	registerOpcode(XOR,dss_decode,xor_execute,NULL,dest_writeback);
 	registerOpcode(MOVC,movc_decode,movc_execute,NULL,dest_writeback);
 	registerOpcode(HALT,NULL,NULL,NULL,halt_writeback);
 }

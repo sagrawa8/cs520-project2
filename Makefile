@@ -8,7 +8,7 @@ test : apexSim ${PGM}.o
 gdb : apexSim ${PGM}.o
 	gdb apexSim
 	
-apexSim : apexSim.o apexCPU.o	apexMem.o apexOpcodes.o
+apexSim : apexSim.o apexCPU.o   apexMem.o apexOpcodes.o
 
 apexOpcodes.o : apexOpcodes.c apexOpcodes.h apexCPU.h apexMem.h
 
