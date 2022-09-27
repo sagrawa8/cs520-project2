@@ -154,8 +154,8 @@ void registerAllOpcodes() {
 	registerOpcode(XOR,dss_decode,xor_execute,NULL,dest_writeback);
 	registerOpcode(MOVC,movc_decode,movc_execute,NULL,dest_writeback);
 
-	registerOpcode(LOAD,dss_decode,xor_execute,NULL,dest_writeback);
-	registerOpcode(STORE,movc_decode,movc_execute,NULL,dest_writeback);
+	//registerOpcode(LOAD,dss_decode,xor_execute,NULL,dest_writeback);
+	//registerOpcode(STORE,movc_decode,movc_execute,NULL,dest_writeback);
 
 	registerOpcode(HALT,NULL,NULL,NULL,halt_writeback);
 }
