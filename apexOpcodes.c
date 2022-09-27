@@ -143,6 +143,7 @@ void halt_writeback(cpu cpu) {
 ---------------------------------------------------------*/
 void registerAllOpcodes() {
 	// Invoke registerOpcode for EACH valid opcode here
+	registerOpcode(NOP,NULL,NULL,NULL,NULL);
 	registerOpcode(ADD,dss_decode,add_execute,NULL,dest_writeback);
 	registerOpcode(ADDL,dsi_decode,addl_execute,NULL,dest_writeback);
 	registerOpcode(SUB,dss_decode,sub_execute,NULL,dest_writeback);
@@ -152,6 +153,10 @@ void registerAllOpcodes() {
 	registerOpcode(OR,dss_decode,or_execute,NULL,dest_writeback);
 	registerOpcode(XOR,dss_decode,xor_execute,NULL,dest_writeback);
 	registerOpcode(MOVC,movc_decode,movc_execute,NULL,dest_writeback);
+
+	registerOpcode(LOAD,dss_decode,xor_execute,NULL,dest_writeback);
+	registerOpcode(STORE,movc_decode,movc_execute,NULL,dest_writeback);
+
 	registerOpcode(HALT,NULL,NULL,NULL,halt_writeback);
 }
 
