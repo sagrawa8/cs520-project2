@@ -113,6 +113,12 @@ void xor_execute(cpu cpu) {
 	set_conditionCodes(cpu);
 }
 
+void load_execute(cpu cpu) {
+	cpu->stage[execute].result=cpu->stage[execute].op1+cpu->stage[execute].imm;
+	reportStage(cpu,execute,"res=%d+%d",cpu->stage[execute].op1,cpu->stage[execute].op2);
+	set_conditionCodes(cpu);
+}
+
 void movc_execute(cpu cpu) {
 	cpu->stage[execute].result=cpu->stage[execute].op1;
 	reportStage(cpu,execute,"res=%d",cpu->stage[execute].result);
@@ -121,11 +127,21 @@ void movc_execute(cpu cpu) {
 /*---------------------------------------------------------
   Memory  stage functions
 ---------------------------------------------------------*/
+void load_mem(cpu cpu){
+	int add1= cpu->stage[memory].imm;
 
+}
 /*---------------------------------------------------------
   Writeback stage functions
 ---------------------------------------------------------*/
 void dest_writeback(cpu cpu) {
+	int reg=cpu->stage[writeback].dr;
+	cpu->reg[reg]=cpu->stage[writeback].result;
+	cpu->regValid[reg]=1;
+	reportStage(cpu,writeback,"R%02d<-%d",reg,cpu->stage[writeback].result);
+}
+
+void mem_writeback(cpu cpu) {
 	int reg=cpu->stage[writeback].dr;
 	cpu->reg[reg]=cpu->stage[writeback].result;
 	cpu->regValid[reg]=1;
@@ -154,7 +170,7 @@ void registerAllOpcodes() {
 	registerOpcode(XOR,dss_decode,xor_execute,NULL,dest_writeback);
 	registerOpcode(MOVC,movc_decode,movc_execute,NULL,dest_writeback);
 
-	//registerOpcode(LOAD,dss_decode,xor_execute,NULL,dest_writeback);
+	registerOpcode(LOAD,dsi_decode,load_execute,load_mem,mem_writeback);
 	//registerOpcode(STORE,movc_decode,movc_execute,NULL,dest_writeback);
 
 	registerOpcode(HALT,NULL,NULL,NULL,halt_writeback);
@@ -271,4 +287,38 @@ void set_conditionCodes(cpu cpu) {
 	else cpu->cc.z=0;
 	if (cpu->stage[execute].result>0) cpu->cc.p=1;
 	else cpu->cc.p=0;
+}
+
+void decToHex(int decNum)
+{
+    // char array to store hexadecimal number
+    char hexaDeciNum[50];
+    // counter for hexadecimal number array
+    int i = 0;
+    while (decNum != 0)
+    {
+        /* temporary variable to
+        store right most digit*/
+        int temp = 0;
+        // Get the right most digit
+        temp = decNum % 16;
+        // check if temp < 10
+        if (temp < 10)
+        {
+            hexaDeciNum[i] = temp + 48;
+            i++;
+        }
+        else
+        {
+            hexaDeciNum[i] = temp + 55;
+            i++;
+        }
+        decNum = decNum / 16; // get the quotient
+    }
+    printf("0x"); //print hex symbol
+    // printing hexadecimal number array in reverse order
+    for (int j = i - 1; j >= 0; j--)
+    {
+        printf("%c", hexaDeciNum[j]);
+    }
 }
