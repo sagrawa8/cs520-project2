@@ -56,6 +56,13 @@ void dsi_decode(cpu cpu) {
 	check_dest(cpu);
 }
 
+void ssi_decode(cpu cpu) {
+	cpu->stage[decode].status=stage_noAction;
+	//fetch_register2(cpu);
+	//fetch_register1(cpu);
+	check_dest(cpu);
+}
+
 void movc_decode(cpu cpu) {
 	cpu->stage[decode].status=stage_noAction;
 	check_dest(cpu);
@@ -79,43 +86,49 @@ void addl_execute(cpu cpu) {
 
 void sub_execute(cpu cpu) {
 	cpu->stage[execute].result=cpu->stage[execute].op1-cpu->stage[execute].op2;
-	reportStage(cpu,execute,"res=%d+%d",cpu->stage[execute].op1,cpu->stage[execute].op2);
+	reportStage(cpu,execute,"res=%d-%d",cpu->stage[execute].op1,cpu->stage[execute].op2);
 	set_conditionCodes(cpu);
 }
 
 void subl_execute(cpu cpu) {
 	cpu->stage[execute].result=cpu->stage[execute].op1-cpu->stage[execute].imm;
-	reportStage(cpu,execute,"res=%d+%d",cpu->stage[execute].op1,cpu->stage[execute].imm);
+	reportStage(cpu,execute,"res=%d-%d",cpu->stage[execute].op1,cpu->stage[execute].imm);
 	set_conditionCodes(cpu);
 }
 
 void mul_execute(cpu cpu) {
 	cpu->stage[execute].result=cpu->stage[execute].op1*cpu->stage[execute].op2;
-	reportStage(cpu,execute,"res=%d+%d",cpu->stage[execute].op1,cpu->stage[execute].op2);
+	reportStage(cpu,execute,"res=%d*%d",cpu->stage[execute].op1,cpu->stage[execute].op2);
 	set_conditionCodes(cpu);
 }
 
 void and_execute(cpu cpu) {
 	cpu->stage[execute].result=cpu->stage[execute].op1&cpu->stage[execute].op2;
-	reportStage(cpu,execute,"res=%d+%d",cpu->stage[execute].op1,cpu->stage[execute].op2);
+	reportStage(cpu,execute,"res=%d&%d",cpu->stage[execute].op1,cpu->stage[execute].op2);
 	set_conditionCodes(cpu);
 }
 
 void or_execute(cpu cpu) {
 	cpu->stage[execute].result=cpu->stage[execute].op1|cpu->stage[execute].op2;
-	reportStage(cpu,execute,"res=%d+%d",cpu->stage[execute].op1,cpu->stage[execute].op2);
+	reportStage(cpu,execute,"res=%d|%d",cpu->stage[execute].op1,cpu->stage[execute].op2);
 	set_conditionCodes(cpu);
 }
 
 void xor_execute(cpu cpu) {
 	cpu->stage[execute].result=cpu->stage[execute].op1^cpu->stage[execute].op2;
-	reportStage(cpu,execute,"res=%d+%d",cpu->stage[execute].op1,cpu->stage[execute].op2);
+	reportStage(cpu,execute,"res=%d^%d",cpu->stage[execute].op1,cpu->stage[execute].op2);
 	set_conditionCodes(cpu);
 }
 
 void load_execute(cpu cpu) {
 	cpu->stage[execute].result=cpu->stage[execute].op1+cpu->stage[execute].imm;
-	reportStage(cpu,execute,"res=%d+%d",cpu->stage[execute].op1,cpu->stage[execute].op2);
+	reportStage(cpu,execute,"res=%d+%d",cpu->stage[execute].op1,cpu->stage[execute].imm);
+	set_conditionCodes(cpu);
+}
+
+void store_execute(cpu cpu) {
+	cpu->stage[execute].result=cpu->stage[execute].op2+cpu->stage[execute].imm;
+	reportStage(cpu,execute,"res=%d+%d",cpu->stage[execute].op1,cpu->stage[execute].imm);
 	set_conditionCodes(cpu);
 }
 
@@ -128,8 +141,13 @@ void movc_execute(cpu cpu) {
   Memory  stage functions
 ---------------------------------------------------------*/
 void load_mem(cpu cpu){
-	int add1= cpu->stage[memory].imm;
+	cpu->stage[memory].result = cpu->dataMem[cpu->stage[memory].result];
+	reportStage(cpu,memory,"res=%d",cpu->stage[memory].result);
+}
 
+void store_mem(cpu cpu){
+	cpu->dataMem[cpu->stage[memory].result] = cpu->stage[memory].op1;
+	reportStage(cpu,memory,"res=%d",cpu->stage[memory].result);
 }
 /*---------------------------------------------------------
   Writeback stage functions
@@ -141,12 +159,6 @@ void dest_writeback(cpu cpu) {
 	reportStage(cpu,writeback,"R%02d<-%d",reg,cpu->stage[writeback].result);
 }
 
-void mem_writeback(cpu cpu) {
-	int reg=cpu->stage[writeback].dr;
-	cpu->reg[reg]=cpu->stage[writeback].result;
-	cpu->regValid[reg]=1;
-	reportStage(cpu,writeback,"R%02d<-%d",reg,cpu->stage[writeback].result);
-}
 
 void halt_writeback(cpu cpu) {
 	cpu->stop=1;
@@ -169,9 +181,8 @@ void registerAllOpcodes() {
 	registerOpcode(OR,dss_decode,or_execute,NULL,dest_writeback);
 	registerOpcode(XOR,dss_decode,xor_execute,NULL,dest_writeback);
 	registerOpcode(MOVC,movc_decode,movc_execute,NULL,dest_writeback);
-
-	registerOpcode(LOAD,dsi_decode,load_execute,load_mem,mem_writeback);
-	//registerOpcode(STORE,movc_decode,movc_execute,NULL,dest_writeback);
+	registerOpcode(LOAD,dsi_decode,load_execute,load_mem,dest_writeback);
+	registerOpcode(STORE,ssi_decode,store_execute,store_mem,NULL);
 
 	registerOpcode(HALT,NULL,NULL,NULL,halt_writeback);
 }
@@ -266,7 +277,7 @@ void fetch_register2(cpu cpu) {
 	}
 	// reg2 value cannot be found
 	cpu->stage[decode].status=stage_stalled;
-	reportStage(cpu,execute," R%d invalid",reg);
+	reportStage(cpu,decode," R%d invalid",reg);
 }
 
 void check_dest(cpu cpu) {
