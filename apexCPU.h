@@ -21,6 +21,7 @@ struct apexStage_struct {
 	int offset;
 	int op1;
 	int op2;
+	//int dest;
 	int result;
 	int effectiveAddr;
 	int squashed;

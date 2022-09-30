@@ -58,9 +58,8 @@ void dsi_decode(cpu cpu) {
 
 void ssi_decode(cpu cpu) {
 	cpu->stage[decode].status=stage_noAction;
-	//fetch_register2(cpu);
-	//fetch_register1(cpu);
-	check_dest(cpu);
+	fetch_register1(cpu);
+	fetch_register2(cpu);
 }
 
 void movc_decode(cpu cpu) {
@@ -127,7 +126,7 @@ void load_execute(cpu cpu) {
 }
 
 void store_execute(cpu cpu) {
-	cpu->stage[execute].result=cpu->stage[execute].op2+cpu->stage[execute].imm;
+	cpu->stage[execute].result=cpu->stage[execute].op1+cpu->stage[execute].imm;
 	reportStage(cpu,execute,"res=%d+%d",cpu->stage[execute].op1,cpu->stage[execute].imm);
 	set_conditionCodes(cpu);
 }
@@ -146,8 +145,10 @@ void load_mem(cpu cpu){
 }
 
 void store_mem(cpu cpu){
-	cpu->dataMem[cpu->stage[memory].result] = cpu->stage[memory].op1;
-	reportStage(cpu,memory,"res=%d",cpu->stage[memory].result);
+	int memoryLocation = cpu->stage[memory].result;
+	int value = cpu->stage[memory].op2;
+	cpu->dataMem[memoryLocation] = value;
+	reportStage(cpu,memory,"memory_loc=%d value_at_loc=%d",memoryLocation,cpu->dataMem[memoryLocation]);
 }
 /*---------------------------------------------------------
   Writeback stage functions
@@ -183,7 +184,6 @@ void registerAllOpcodes() {
 	registerOpcode(MOVC,movc_decode,movc_execute,NULL,dest_writeback);
 	registerOpcode(LOAD,dsi_decode,load_execute,load_mem,dest_writeback);
 	registerOpcode(STORE,ssi_decode,store_execute,store_mem,NULL);
-
 	registerOpcode(HALT,NULL,NULL,NULL,halt_writeback);
 }
 
