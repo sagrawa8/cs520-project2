@@ -140,15 +140,16 @@ void movc_execute(cpu cpu) {
   Memory  stage functions
 ---------------------------------------------------------*/
 void load_mem(cpu cpu){
-	cpu->stage[memory].result = cpu->dataMem[cpu->stage[memory].result];
-	reportStage(cpu,memory,"res=%d",cpu->stage[memory].result);
+	int memoryLocation = cpu->stage[memory].result;
+	cpu->stage[memory].result = dfetch(cpu,memoryLocation);
+	reportStage(cpu,memory,"loaded value=%d from memory loc=%d",cpu->stage[memory].result,memoryLocation);
 }
 
 void store_mem(cpu cpu){
 	int memoryLocation = cpu->stage[memory].result;
 	int value = cpu->stage[memory].op2;
-	cpu->dataMem[memoryLocation] = value;
-	reportStage(cpu,memory,"memory_loc=%d value_at_loc=%d",memoryLocation,cpu->dataMem[memoryLocation]);
+	dstore(cpu,memoryLocation,value);
+	reportStage(cpu,memory,"stored %d at memory loc=%d", dfetch(cpu,memoryLocation),memoryLocation);
 }
 /*---------------------------------------------------------
   Writeback stage functions

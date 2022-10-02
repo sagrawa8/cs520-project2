@@ -17,7 +17,7 @@ int dfetch(cpu cpu,int addr) {
 	int idx=addr/4;
 	if (idx<0 || idx>127 || 0!=addr%4) {
 		cpu->halt_fetch=cpu->stop=1;
-		strcpy("Segmentation violation in dfetch",cpu->abend);
+		strcpy(cpu->abend,"Segmentation violation in dfetch");
 		return 0;
 	}
 	if (idx<cpu->lowMem) {

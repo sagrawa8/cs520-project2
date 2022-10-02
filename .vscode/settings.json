@@ -2,6 +2,7 @@
     "files.associations": {
         "apexopinfo.h": "c",
         "apexcpu.h": "c",
-        "stdarg.h": "c"
+        "stdarg.h": "c",
+        "apexmem.h": "c"
     }
 }
