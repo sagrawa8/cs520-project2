@@ -50,6 +50,18 @@ void dss_decode(cpu cpu) {
 	check_dest(cpu);
 }
 
+void dsi_decode(cpu cpu) {
+	cpu->stage[decode].status=stage_noAction;
+	fetch_register1(cpu);
+	check_dest(cpu);
+}
+
+void ssi_decode(cpu cpu) {
+	cpu->stage[decode].status=stage_noAction;
+	fetch_register1(cpu);
+	fetch_register2(cpu);
+}
+
 void movc_decode(cpu cpu) {
 	cpu->stage[decode].status=stage_noAction;
 	check_dest(cpu);
@@ -64,6 +76,61 @@ void add_execute(cpu cpu) {
 	set_conditionCodes(cpu);
 }
 
+void addl_execute(cpu cpu) {
+	cpu->stage[execute].result=cpu->stage[execute].op1+cpu->stage[execute].imm;
+	reportStage(cpu,execute,"res=%d+%d",cpu->stage[execute].op1,cpu->stage[execute].imm);
+	set_conditionCodes(cpu);
+}
+
+
+void sub_execute(cpu cpu) {
+	cpu->stage[execute].result=cpu->stage[execute].op1-cpu->stage[execute].op2;
+	reportStage(cpu,execute,"res=%d-%d",cpu->stage[execute].op1,cpu->stage[execute].op2);
+	set_conditionCodes(cpu);
+}
+
+void subl_execute(cpu cpu) {
+	cpu->stage[execute].result=cpu->stage[execute].op1-cpu->stage[execute].imm;
+	reportStage(cpu,execute,"res=%d-%d",cpu->stage[execute].op1,cpu->stage[execute].imm);
+	set_conditionCodes(cpu);
+}
+
+void mul_execute(cpu cpu) {
+	cpu->stage[execute].result=cpu->stage[execute].op1*cpu->stage[execute].op2;
+	reportStage(cpu,execute,"res=%d*%d",cpu->stage[execute].op1,cpu->stage[execute].op2);
+	set_conditionCodes(cpu);
+}
+
+void and_execute(cpu cpu) {
+	cpu->stage[execute].result=cpu->stage[execute].op1&cpu->stage[execute].op2;
+	reportStage(cpu,execute,"res=%d&%d",cpu->stage[execute].op1,cpu->stage[execute].op2);
+	set_conditionCodes(cpu);
+}
+
+void or_execute(cpu cpu) {
+	cpu->stage[execute].result=cpu->stage[execute].op1|cpu->stage[execute].op2;
+	reportStage(cpu,execute,"res=%d|%d",cpu->stage[execute].op1,cpu->stage[execute].op2);
+	set_conditionCodes(cpu);
+}
+
+void xor_execute(cpu cpu) {
+	cpu->stage[execute].result=cpu->stage[execute].op1^cpu->stage[execute].op2;
+	reportStage(cpu,execute,"res=%d^%d",cpu->stage[execute].op1,cpu->stage[execute].op2);
+	set_conditionCodes(cpu);
+}
+
+void load_execute(cpu cpu) {
+	cpu->stage[execute].result=cpu->stage[execute].op1+cpu->stage[execute].imm;
+	reportStage(cpu,execute,"res=%d+%d",cpu->stage[execute].op1,cpu->stage[execute].imm);
+	set_conditionCodes(cpu);
+}
+
+void store_execute(cpu cpu) {
+	cpu->stage[execute].result=cpu->stage[execute].op1+cpu->stage[execute].imm;
+	reportStage(cpu,execute,"res=%d+%d",cpu->stage[execute].op1,cpu->stage[execute].imm);
+	set_conditionCodes(cpu);
+}
+
 void movc_execute(cpu cpu) {
 	cpu->stage[execute].result=cpu->stage[execute].op1;
 	reportStage(cpu,execute,"res=%d",cpu->stage[execute].result);
@@ -72,7 +139,18 @@ void movc_execute(cpu cpu) {
 /*---------------------------------------------------------
   Memory  stage functions
 ---------------------------------------------------------*/
+void load_mem(cpu cpu){
+	int memoryLocation = cpu->stage[memory].result;
+	cpu->stage[memory].result = dfetch(cpu,memoryLocation);
+	reportStage(cpu,memory,"loaded value=%d from memory loc=%d",cpu->stage[memory].result,memoryLocation);
+}
 
+void store_mem(cpu cpu){
+	int memoryLocation = cpu->stage[memory].result;
+	int value = cpu->stage[memory].op2;
+	dstore(cpu,memoryLocation,value);
+	reportStage(cpu,memory,"stored %d at memory loc=%d", dfetch(cpu,memoryLocation),memoryLocation);
+}
 /*---------------------------------------------------------
   Writeback stage functions
 ---------------------------------------------------------*/
@@ -82,6 +160,7 @@ void dest_writeback(cpu cpu) {
 	cpu->regValid[reg]=1;
 	reportStage(cpu,writeback,"R%02d<-%d",reg,cpu->stage[writeback].result);
 }
+
 
 void halt_writeback(cpu cpu) {
 	cpu->stop=1;
@@ -94,8 +173,18 @@ void halt_writeback(cpu cpu) {
 ---------------------------------------------------------*/
 void registerAllOpcodes() {
 	// Invoke registerOpcode for EACH valid opcode here
+	registerOpcode(NOP,NULL,NULL,NULL,NULL);
 	registerOpcode(ADD,dss_decode,add_execute,NULL,dest_writeback);
+	registerOpcode(ADDL,dsi_decode,addl_execute,NULL,dest_writeback);
+	registerOpcode(SUB,dss_decode,sub_execute,NULL,dest_writeback);
+	registerOpcode(SUBL,dsi_decode,subl_execute,NULL,dest_writeback);
+	registerOpcode(MUL,dss_decode,mul_execute,NULL,dest_writeback);
+	registerOpcode(AND,dss_decode,and_execute,NULL,dest_writeback);
+	registerOpcode(OR,dss_decode,or_execute,NULL,dest_writeback);
+	registerOpcode(XOR,dss_decode,xor_execute,NULL,dest_writeback);
 	registerOpcode(MOVC,movc_decode,movc_execute,NULL,dest_writeback);
+	registerOpcode(LOAD,dsi_decode,load_execute,load_mem,dest_writeback);
+	registerOpcode(STORE,ssi_decode,store_execute,store_mem,NULL);
 	registerOpcode(HALT,NULL,NULL,NULL,halt_writeback);
 }
 
@@ -189,7 +278,7 @@ void fetch_register2(cpu cpu) {
 	}
 	// reg2 value cannot be found
 	cpu->stage[decode].status=stage_stalled;
-	reportStage(cpu,execute," R%d invalid",reg);
+	reportStage(cpu,decode," R%d invalid",reg);
 }
 
 void check_dest(cpu cpu) {
@@ -210,4 +299,38 @@ void set_conditionCodes(cpu cpu) {
 	else cpu->cc.z=0;
 	if (cpu->stage[execute].result>0) cpu->cc.p=1;
 	else cpu->cc.p=0;
+}
+
+void decToHex(int decNum)
+{
+    // char array to store hexadecimal number
+    char hexaDeciNum[50];
+    // counter for hexadecimal number array
+    int i = 0;
+    while (decNum != 0)
+    {
+        /* temporary variable to
+        store right most digit*/
+        int temp = 0;
+        // Get the right most digit
+        temp = decNum % 16;
+        // check if temp < 10
+        if (temp < 10)
+        {
+            hexaDeciNum[i] = temp + 48;
+            i++;
+        }
+        else
+        {
+            hexaDeciNum[i] = temp + 55;
+            i++;
+        }
+        decNum = decNum / 16; // get the quotient
+    }
+    printf("0x"); //print hex symbol
+    // printing hexadecimal number array in reverse order
+    for (int j = i - 1; j >= 0; j--)
+    {
+        printf("%c", hexaDeciNum[j]);
+    }
 }
