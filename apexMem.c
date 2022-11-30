@@ -15,9 +15,14 @@ int ifetch(cpu cpu) {
 
 int dfetch(cpu cpu,int addr) {
 	int idx=addr/4;
-	if (idx<0 || idx>127 || 0!=addr%4) {
-		cpu->halt_fetch=cpu->stop=1;
-		strcpy(cpu->abend,"Segmentation violation in dfetch");
+	if (idx<0 || idx>127) {
+		cpu->stop=1;
+		sprintf(cpu->abend,"dfetch segmentation violation - address %08x out of range",addr);
+		return 0;
+	}
+	if (0!=addr%4) {
+		cpu->stop=1;
+		sprintf(cpu->abend,"dfetch segmentation: %08x not a multiple of 4",addr);
 		return 0;
 	}
 	if (idx<cpu->lowMem) {
@@ -36,13 +41,13 @@ int dfetch(cpu cpu,int addr) {
 void dstore(cpu cpu,int addr,int value) {
 	int idx=addr/4;
 	if (idx<0 || idx>127) {
-		cpu->halt_fetch=cpu->stop=1;
-		sprintf(cpu->abend,"dstore segmentation violation - invalid address=%08x",addr);
+		cpu->stop=1;
+		sprintf(cpu->abend,"dfetch segmentation: %08x out of range",addr);
 		return;
 	}
 	if (0!=addr%4) {
 		cpu->stop=1;
-		sprintf(cpu->abend,"dstore segmentation violation bad boundary address=%08x",addr);
+		sprintf(cpu->abend,"dfetch segmentation: %08x not a multiple of 4",addr);
 		return;
 	}
 	if (idx<cpu->lowMem) cpu->lowMem=idx;

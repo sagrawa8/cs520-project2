@@ -1,14 +1,20 @@
 CC = gcc
 CFLAGS = -Wall -std=c18 -ggdb
-PGM = basic
-
+PGM = example
+	
+%.o : %.s apexAsm 
+	./apexAsm $<	
+	
 test : apexSim ${PGM}.o
 	./apexSim ${PGM}.o
 	
 gdb : apexSim ${PGM}.o
-	gdb apexSim
+	gdb --args apexSim ${PGM}.o
 	
-apexSim : apexSim.o apexCPU.o   apexMem.o apexOpcodes.o
+vg : apexSim ${PGM}.o
+	valgrind --leak-check=full apexSim ${PGM}.o
+	
+apexSim : apexSim.o apexCPU.o	apexMem.o apexOpcodes.o
 
 apexOpcodes.o : apexOpcodes.c apexOpcodes.h apexCPU.h apexMem.h
 

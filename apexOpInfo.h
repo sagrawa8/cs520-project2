@@ -23,6 +23,12 @@ struct opInfo_struct opInfo[NUMOPS]  ={
 	{"MOVC",fmt_di},
 	{"LOAD",fmt_dsi},
 	{"STORE",fmt_ssi},
+	{"CMP",fmt_ss},
+	{"JUMP",fmt_off},
+	{"BZ",fmt_off},
+	{"BNZ",fmt_off},
+	{"BP",fmt_off},
+	{"BNP",fmt_off},
 	{"HALT",fmt_nop}
 };
 

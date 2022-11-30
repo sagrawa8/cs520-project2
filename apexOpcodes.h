@@ -30,10 +30,16 @@ enum opcode_enum {
 	MUL,
 	AND,
 	OR,
-	XOR,	
+	XOR,
 	MOVC,
 	LOAD,
 	STORE,
+	CMP,
+	JUMP,
+	BZ,
+	BNZ,
+	BP,
+	BNP,
 	HALT
 };
 
@@ -56,9 +62,11 @@ extern struct opInfo_struct {
   Function declarations for externally available functions
 ---------------------------------------------------------*/
 void registerAllOpcodes();
-void registerOpcode(int opNum,
-	opStageFn decodeFn,opStageFn executeFn,
-	opStageFn memoryFn,opStageFn writebackFn);
+void registerOpcode(int opNum,enum fu_enum fu,
+	opStageFn decodeFn,opStageFn executeFn1,
+	opStageFn executeFn2,opStageFn executeFn3,
+	opStageFn writebackFn);
 char * disassemble(int instruction,char *buf);
+int fetchRegister(cpu cpu,int reg,int *value);
 
 #endif
