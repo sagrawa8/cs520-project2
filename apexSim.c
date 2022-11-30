@@ -93,19 +93,18 @@ void simCommands(cpu cpu) {
 				cycleCPU(cpu);
 				if (verbose) printState(cpu);
 				continue;
-			case 'r':
-				{
-					int maxCycles=20;
-					while((cpu->stop==0) & (maxCycles>0)) {
-						cycleCPU(cpu);
-						if (verbose) printState(cpu);
-						maxCycles--;
-					}
-					if (maxCycles<=0) {
-						printf("... stopped after 20 cycles... use \"run\" again to continue\n");
-					}
-					continue;
+			case 'r': {
+				int maxCycles=20;
+				while((cpu->stop==0) & (maxCycles>0)) {
+					cycleCPU(cpu);
+					if (verbose) printState(cpu);
+					maxCycles--;
 				}
+				if (maxCycles<=0) {
+					printf("... stopped after 20 cycles... use \"run\" again to continue\n");
+				}
+				continue;
+			}
 			default:
 				printf("Unrecognized APEX simulation command: %s\n",cmdBuf);
 		}
