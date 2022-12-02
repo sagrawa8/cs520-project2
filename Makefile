@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -Wall -std=c18 -ggdb
-PGM = example
+PGM = countdown
 	
 %.o : %.s apexAsm 
 	./apexAsm $<	

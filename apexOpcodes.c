@@ -210,6 +210,7 @@ void halt_writeback(cpu cpu) {
 ---------------------------------------------------------*/
 void registerAllOpcodes() {
 	// Invoke registerOpcode for EACH valid opcode here
+	// New Code
 	registerOpcode(ADD,alu_fu,dss_decode,add_execute,fwd_execute,fwd_execute,dest_writeback);
 	registerOpcode(ADDL,alu_fu,dsi_decode,add_execute,fwd_execute,fwd_execute,dest_writeback);
 	registerOpcode(SUB,alu_fu,dss_decode,sub_execute,fwd_execute,fwd_execute,dest_writeback);
