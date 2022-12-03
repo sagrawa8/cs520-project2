@@ -1,6 +1,8 @@
 #ifndef APEXCPU_H // Guard against recursive includes
 #define APEXCPU_H
-#include <stdarg.h> // To enable reportStage
+//#include "rob.h" 
+#include <stdarg.h>
+// To enable reportStage
 
 enum stageStatus_enum {
 	stage_squashed,
