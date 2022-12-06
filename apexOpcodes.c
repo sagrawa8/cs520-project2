@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <assert.h>
+#include "rob.h"
 
 /*---------------------------------------------------------
 This file contains a C function for each opcode and
