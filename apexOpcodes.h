@@ -1,7 +1,6 @@
 #ifndef APEXOPCODES_H // Guard against recursive includes
 #define APEXOPCODES_H
 #include "apexCPU.h"
-//#include "rob.h"
 
 /*---------------------------------------------------------
   Enumeration of all valid opcode formats

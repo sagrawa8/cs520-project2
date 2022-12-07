@@ -34,6 +34,7 @@ void fetch_register2(cpu cpu);
 void check_dest(cpu cpu);
 void set_conditionCodes(cpu cpu,enum stage_enum stage);
 void exForward(cpu cpu,enum stage_enum stage);
+void rob_insert(cpu cpu);
 
 /*---------------------------------------------------------
   Global Variables
@@ -45,20 +46,23 @@ opStageFn opFns[retire+1][NUMOPS]={NULL}; // Array of function pointers, one for
   Decode stage functions
 ---------------------------------------------------------*/
 void dss_decode_ren1(cpu cpu) {
+	check_dest(cpu);
+	rob_insert(cpu);
 	fetch_register1(cpu);
 	fetch_register2(cpu);
-	check_dest(cpu);
 	cpu->stage[decode_rename1].status=stage_actionComplete;
 }
 
 void dsi_decode_ren1(cpu cpu) {
+	check_dest(cpu);
+	rob_insert(cpu);
 	fetch_register1(cpu);
 	// Second operand is immediate... no fetch required
-	check_dest(cpu);
 	cpu->stage[decode_rename1].status=stage_actionComplete;
 }
 
 void ssi_decode_ren1(cpu cpu) {
+	rob_insert(cpu);
 	fetch_register1(cpu);
 	fetch_register2(cpu);
 	cpu->stage[decode_rename1].status=stage_actionComplete;
@@ -66,10 +70,12 @@ void ssi_decode_ren1(cpu cpu) {
 
 void movc_decode_ren1(cpu cpu) {
 	check_dest(cpu);
+	rob_insert(cpu);
 	cpu->stage[decode_rename1].status=stage_actionComplete;
 }
 
 void cbranch_decode_ren1(cpu cpu) {
+	rob_insert(cpu);
 	cpu->stage[decode_rename1].branch_taken=0;
 	if (cpu->stage[decode_rename1].opcode==JUMP) cpu->stage[decode_rename1].branch_taken=1;
 	if (cpu->stage[decode_rename1].opcode==BZ && cpu->cc.z) cpu->stage[decode_rename1].branch_taken=1;
@@ -90,10 +96,6 @@ void cbranch_decode_ren1(cpu cpu) {
 }
 
 void ren2_dis(cpu cpu) {
-	fetch_register1(cpu);
-	fetch_register2(cpu);
-	check_dest(cpu);
-	cpu->stage[decode_rename1].status=stage_actionComplete;
 }
 
 void issue(cpu cpu) {
@@ -317,6 +319,7 @@ char * disassemble(int instruction,char *buf) {
 
 
 int fetchRegister(cpu cpu,int reg,int *value) {
+
 	// Check forwarding busses in program order
 	for (int fb=0;fb<3;fb++) {
 		if (cpu->fwdBus[fb].valid && reg==cpu->fwdBus[fb].tag) {
@@ -327,6 +330,21 @@ int fetchRegister(cpu cpu,int reg,int *value) {
 	if (cpu->regValid[reg]) {
 		(*value)=cpu->reg[reg];
 		return 1;
+	}
+	int found_prf;
+	if(cpu->rat[reg].valid)
+		found_prf = cpu->rat[reg].prf;
+		if(cpu->prf[found_prf].valid){
+			(*value) = cpu->prf[found_prf].value;
+			reportStage(cpu,decode_rename1," R%d=%d",reg,cpu->prf[found_prf].value);
+			return 1;
+		}
+	else{
+		if (cpu->regValid[reg]) {
+			(*value)=cpu->reg[reg];
+			reportStage(cpu,decode_rename1," R%d=%d",reg,cpu->reg[reg]);
+			return 1;
+	}
 	}
 	return 0;
 }
@@ -354,13 +372,13 @@ void fetch_register2(cpu cpu) {
 
 void check_dest(cpu cpu) {
 	int reg=cpu->stage[decode_rename1].dr;
-	if (!cpu->regValid[reg]) {
+	if(isFreeListEmpty()){
 		cpu->stage[decode_rename1].status=stage_stalled;
-		reportStage(cpu,decode_rename1," R%d invalid",reg);
 	}
-	if (cpu->stage[decode_rename1].status!=stage_stalled)  {
-		 cpu->regValid[cpu->stage[decode_rename1].dr]=0;
-		 reportStage(cpu,decode_rename1," invalidate R%d",reg);
+	else{
+		cpu->rat[reg].arf = reg;
+		cpu->rat[reg].valid = 1;
+		cpu->rat[reg].prf = dequeue();
 	}
 }
 
@@ -376,4 +394,11 @@ void exForward(cpu cpu,enum stage_enum stage) {
 	cpu->fwdBus[0].tag=cpu->stage[stage].dr;
 	cpu->fwdBus[0].value=cpu->stage[stage].result;
 	cpu->fwdBus[0].valid=1;
+}
+
+
+void rob_insert(cpu cpu){
+	cpu->rob_node = addEndROB(cpu->rob_node, 
+	1,cpu->stage[decode_rename1].opcode,cpu->stage[decode_rename1].pc,
+	cpu->stage[decode_rename1].dr,cpu->rat[cpu->stage[decode_rename1].dr].prf);
 }

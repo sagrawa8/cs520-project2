@@ -162,9 +162,9 @@ void cycleCPU(cpu cpu) {
 		return;
 	}
 
-	//cpu->rob_node = addEndROB(cpu->rob_node, 1,ADD,0,1,1);
-	//cpu->lsq_node = addEndLSQ(cpu->lsq_node,0,1,SUB,fu_alu1,1,5,23,0,3,12,0,18);
-	//traverseLSQ(cpu->lsq_node);
+	cpu->rob_node = addEndROB(cpu->rob_node, 1,ADD,0,1,1);
+	cpu->lsq_node = addEndLSQ(cpu->lsq_node,0,1,SUB,fu_alu1,1,5,23,0,3,12,0,18);
+	traverseLSQ(cpu->lsq_node);
 	// First, cycle stage data from FU to WB
 	// Resolve which FU forwards to WB (if any)
 	cpu->stage[retire].status=stage_noAction;
