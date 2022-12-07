@@ -1,3 +1,0 @@
-struct iq{
-int free;
-};

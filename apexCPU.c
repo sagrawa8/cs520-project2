@@ -3,7 +3,10 @@
 #include <assert.h>
 #include "apexCPU.h"
 #include "apexMem.h"
+#include "apexOpcodes.h"
 #include "rob.c" 
+#include "lsq.c"
+#include "free_prf.c"
 
 /*---------------------------------------------------------
    Internal function declarations
@@ -19,23 +22,25 @@ char * statusString(enum stageStatus_enum st);
 /*---------------------------------------------------------
    Global Variables
 ---------------------------------------------------------*/
-char *stageName[writeback+1]={"fetch","decode",
+char *stageName[retire+1]={"fetch","decode",
 	"alu1","alu2","alu3",
 	"mul1","mul2","mul3",
 	"load1","load2","load3",
 	"store1","store2","store3",
 	"branch1","branch2","branch3",
 	"writeback"};
-extern opStageFn opFns[writeback+1][NUMOPS]; // Array of function pointers, one for each stage/opcode combination
-enum stage_enum pipeEnd[writeback+1]={
-	decode, // For fetch
-	decode, // For decode
+extern opStageFn opFns[retire+1][NUMOPS]; // Array of function pointers, one for each stage/opcode combination
+enum stage_enum pipeEnd[retire+1]={
+	fetch, // For fetch
+	decode_rename1,
+	rename2_dispatch,
+	issue_instruction, // For decode
 	fu_alu3, fu_alu3, fu_alu3, // for alu fu
 	fu_mul3, fu_mul3, fu_mul3, // for mul fu
 	fu_ld3, fu_ld3, fu_ld3, // for load fu
 	fu_st3, fu_st3, fu_st3, // for store fu
 	fu_br3, fu_br3, fu_br3, // for br fu
-	writeback // for writeback
+	retire // for writeback
 };
 
 /*---------------------------------------------------------
@@ -56,8 +61,9 @@ void initCPU(cpu cpu) {
 	cpu->instr_retired=0;
 	cpu->halt_fetch=0;
 	cpu->stop=0;
-	cpu->last = NULL;
-	for(enum stage_enum i=fetch;i<=writeback;i++) {
+	cpu->rob_node = NULL;
+	cpu->lsq_node = NULL;
+	for(enum stage_enum i=fetch;i<=retire;i++) {
 		cpu->stage[i].status=stage_squashed;
 		cpu->stage[i].report[0]='\0';
 		reportStage(cpu,i,"---");
@@ -70,6 +76,10 @@ void initCPU(cpu cpu) {
 	}
 	for (int c=2; c>=0; c--) cpu->fwdBus[c].valid=0;
 	registerAllOpcodes();
+	for(int i=0;i<33;i++){
+		enqueue(i);
+	}
+	show();
 }
 
 void loadCPU(cpu cpu,char * objFileName) {
@@ -108,7 +118,7 @@ void printState(cpu cpu) {
 
 	printf("Stage Info:\n");
 	char instBuf[32];
-	for (int s=0;s<=writeback;s++) {
+	for (int s=0;s<=retire;s++) {
 		if (cpu->stage[s].status==stage_noAction) continue;
 		if (cpu->stage[s].status==stage_squashed) continue;
 		// if (cpu->stage[s].status==stage_stalled) continue;
@@ -151,22 +161,23 @@ void cycleCPU(cpu cpu) {
 		printf("CPU is stopped for %s. No cycles allowed.\n",cpu->abend);
 		return;
 	}
-	
-	//cpu->last = addEnd(cpu->last, 1,ADD,0,1,1);
 
+	//cpu->rob_node = addEndROB(cpu->rob_node, 1,ADD,0,1,1);
+	//cpu->lsq_node = addEndLSQ(cpu->lsq_node,0,1,SUB,fu_alu1,1,5,23,0,3,12,0,18);
+	//traverseLSQ(cpu->lsq_node);
 	// First, cycle stage data from FU to WB
 	// Resolve which FU forwards to WB (if any)
-	cpu->stage[writeback].status=stage_noAction;
-	for(enum stage_enum fu=fu_alu3; fu<=fu_br3 && cpu->stage[writeback].status==stage_noAction; fu+=3) {
+	cpu->stage[retire].status=stage_noAction;
+	for(enum stage_enum fu=fu_alu3; fu<=fu_br3 && cpu->stage[retire].status==stage_noAction; fu+=3) {
 		if (cpu->stage[fu].status==stage_actionComplete) {
-			cpu->stage[writeback]=cpu->stage[fu];
-			cpu->stage[writeback].status=stage_ready;
+			cpu->stage[retire]=cpu->stage[fu];
+			cpu->stage[retire].status=stage_ready;
 			cpu->stage[fu].status=stage_noAction; // Available for new
 		}
 	}
-	if (cpu->stage[writeback].status==stage_noAction) {
-		cpu->stage[writeback].status=stage_stalled; // Nothing is ready to writeback
-		cpu->stage[writeback].pc=-1;
+	if (cpu->stage[retire].status==stage_noAction) {
+		cpu->stage[retire].status=stage_stalled; // Nothing is ready to writeback
+		cpu->stage[retire].pc=-1;
 	}
 
 
@@ -185,13 +196,13 @@ void cycleCPU(cpu cpu) {
 
 	cycle_dispatch(cpu); //  dispatch/issue any decoded instruction to an FU
 	// Next, cycle stage data from Fetch to Decode and reset Fetch
-	if (cpu->stage[decode].status!=stage_stalled) {
+	if (cpu->stage[decode_rename1].status!=stage_stalled) {
 		if (cpu->stage[fetch].status==stage_stalled ) {
-			cpu->stage[decode].status=stage_squashed;
-			cpu->stage[decode].instruction=0;
-			cpu->stage[decode].opcode=0;
+			cpu->stage[decode_rename1].status=stage_squashed;
+			cpu->stage[decode_rename1].instruction=0;
+			cpu->stage[decode_rename1].opcode=0;
 		} else {
-			cpu->stage[decode]=cpu->stage[fetch];
+			cpu->stage[decode_rename1]=cpu->stage[fetch];
 			// Reset the fetch stage
 			cpu->stage[fetch].status=stage_squashed; // No valid instruction available yet
 			cpu->stage[fetch].instruction=0;
@@ -211,7 +222,7 @@ void cycleCPU(cpu cpu) {
 	//   order.
 
 	// Reset the reports and status as required for all stages
-	for(int s=0;s<=writeback;s++) {
+	for(int s=0;s<=retire;s++) {
 		cpu->stage[s].report[0]='\0';
 		switch (cpu->stage[s].status) {
 			case stage_squashed:
@@ -231,9 +242,9 @@ void cycleCPU(cpu cpu) {
 	}
 
 
-	if (!cpu->stop && cpu->stage[writeback].status==stage_ready) cycle_stage(cpu,writeback);
+	if (!cpu->stop && cpu->stage[retire].status==stage_ready) cycle_stage(cpu,retire);
 
-	if (!cpu->stop) cycle_stage(cpu,decode); // Do the rf part of d/rf
+	if (!cpu->stop) cycle_stage(cpu,decode_rename1); // Do the rf part of d/rf
 
 	cpu->t++; // update the clock tick - This cycle has completed
 	if (cpu->t==1) {
@@ -242,7 +253,7 @@ void cycleCPU(cpu cpu) {
 
 	// Report on all stages (move this before cycling the rf part of decode to match Kanad's results)
 	printf ("t=%3d |",cpu->t);
-	for(int s=0;s<=writeback;s++) {
+	for(int s=0;s<=retire;s++) {
 		int stalled=0;
 		for(int f=s;f<=pipeEnd[s];f++) if (cpu->stage[f].status==stage_stalled) stalled=1;
 		if (stalled) printf ("%3ss|", getInum(cpu,cpu->stage[s].pc));
@@ -327,71 +338,71 @@ void cycle_fetch(cpu cpu) {
 
 void cycle_decode(cpu cpu) {
 	// Does the first half (the decode part) of the decode/fetch regs stage
-	if (cpu->stage[decode].status==stage_squashed) return;
-	if (cpu->stage[decode].status==stage_stalled) return; // Decode already done
-	enum opFormat_enum fmt=opInfo[cpu->stage[decode].opcode].format;
-	int inst=cpu->stage[decode].instruction;
-	cpu->stage[decode].op1Valid=1;
-	cpu->stage[decode].op2Valid=1;
+	if (cpu->stage[decode_rename1].status==stage_squashed) return;
+	if (cpu->stage[decode_rename1].status==stage_stalled) return; // Decode already done
+	enum opFormat_enum fmt=opInfo[cpu->stage[decode_rename1].opcode].format;
+	int inst=cpu->stage[decode_rename1].instruction;
+	cpu->stage[decode_rename1].op1Valid=1;
+	cpu->stage[decode_rename1].op2Valid=1;
 	switch(fmt) {
 		case fmt_nop:
-			reportStage(cpu,decode,"decode(nop)");
-			cpu->stage[decode].fu=alu_fu;
-			cpu->stage[decode].status=stage_actionComplete;
+			reportStage(cpu,decode_rename1,"decode(nop)");
+			cpu->stage[decode_rename1].fu=alu_fu;
+			cpu->stage[decode_rename1].status=stage_actionComplete;
 			break; // No decoding required
 		case fmt_dss:
-			cpu->stage[decode].dr=(inst&0x00f00000)>>20;
-			cpu->stage[decode].sr1=(inst&0x000f0000)>>16;
-			cpu->stage[decode].op1Valid=0;
-			cpu->stage[decode].sr2=(inst&0x0000f000)>>12;
-			cpu->stage[decode].op2Valid=0;
-			cpu->stage[decode].fu=alu_fu;
-			if (cpu->stage[decode].opcode==MUL) cpu->stage[decode].fu=mult_fu;
-			reportStage(cpu,decode,"decode(dss)");
+			cpu->stage[decode_rename1].dr=(inst&0x00f00000)>>20;
+			cpu->stage[decode_rename1].sr1=(inst&0x000f0000)>>16;
+			cpu->stage[decode_rename1].op1Valid=0;
+			cpu->stage[decode_rename1].sr2=(inst&0x0000f000)>>12;
+			cpu->stage[decode_rename1].op2Valid=0;
+			cpu->stage[decode_rename1].fu=alu_fu;
+			if (cpu->stage[decode_rename1].opcode==MUL) cpu->stage[decode_rename1].fu=mult_fu;
+			reportStage(cpu,decode_rename1,"decode(dss)");
 			break;
 		case fmt_dsi:
-			cpu->stage[decode].dr=(inst&0x00f00000)>>20;
-			cpu->stage[decode].sr1=(inst&0x000f0000)>>16;
-			cpu->stage[decode].op1Valid=0;
-			cpu->stage[decode].imm=((inst&0x0000ffff)<<16)>>16;
-			cpu->stage[decode].op2=cpu->stage[decode].imm;
-			cpu->stage[decode].op2Valid=1;
-			if (cpu->stage[decode].opcode==LOAD) cpu->stage[decode].fu=load_fu;
-			else cpu->stage[decode].fu=alu_fu;
-			reportStage(cpu,decode,"decode(dsi) op2=%d",cpu->stage[decode].op2);
+			cpu->stage[decode_rename1].dr=(inst&0x00f00000)>>20;
+			cpu->stage[decode_rename1].sr1=(inst&0x000f0000)>>16;
+			cpu->stage[decode_rename1].op1Valid=0;
+			cpu->stage[decode_rename1].imm=((inst&0x0000ffff)<<16)>>16;
+			cpu->stage[decode_rename1].op2=cpu->stage[decode_rename1].imm;
+			cpu->stage[decode_rename1].op2Valid=1;
+			if (cpu->stage[decode_rename1].opcode==LOAD) cpu->stage[decode_rename1].fu=load_fu;
+			else cpu->stage[decode_rename1].fu=alu_fu;
+			reportStage(cpu,decode_rename1,"decode(dsi) op2=%d",cpu->stage[decode_rename1].op2);
 			break;
 		case fmt_di:
-			cpu->stage[decode].dr=(inst&0x00f00000)>>20;
-			cpu->stage[decode].imm=((inst&0x0000ffff)<<16)>>16; // Shift left/right to propagate sign bit
-			cpu->stage[decode].op1=cpu->stage[decode].imm;
-			cpu->stage[decode].op1Valid=1;
-			cpu->stage[decode].op2Valid=1;
-			cpu->stage[decode].fu=alu_fu;
-			reportStage(cpu,decode,"decode(di) op1=%d",cpu->stage[decode].op1);
+			cpu->stage[decode_rename1].dr=(inst&0x00f00000)>>20;
+			cpu->stage[decode_rename1].imm=((inst&0x0000ffff)<<16)>>16; // Shift left/right to propagate sign bit
+			cpu->stage[decode_rename1].op1=cpu->stage[decode_rename1].imm;
+			cpu->stage[decode_rename1].op1Valid=1;
+			cpu->stage[decode_rename1].op2Valid=1;
+			cpu->stage[decode_rename1].fu=alu_fu;
+			reportStage(cpu,decode_rename1,"decode(di) op1=%d",cpu->stage[decode_rename1].op1);
 			break;
 		case fmt_ssi:
-			cpu->stage[decode].sr1=(inst&0x00f00000)>>20;
-			cpu->stage[decode].op1Valid=0;
-			cpu->stage[decode].sr2=(inst&0x000f0000)>>16;
-			cpu->stage[decode].op2Valid=0;
-			cpu->stage[decode].imm=((inst&0x0000ffff)<<16)>>16;
-			cpu->stage[decode].fu=store_fu;
-			reportStage(cpu,decode,"decode(ssi) imm=%d",cpu->stage[decode].imm);
+			cpu->stage[decode_rename1].sr1=(inst&0x00f00000)>>20;
+			cpu->stage[decode_rename1].op1Valid=0;
+			cpu->stage[decode_rename1].sr2=(inst&0x000f0000)>>16;
+			cpu->stage[decode_rename1].op2Valid=0;
+			cpu->stage[decode_rename1].imm=((inst&0x0000ffff)<<16)>>16;
+			cpu->stage[decode_rename1].fu=store_fu;
+			reportStage(cpu,decode_rename1,"decode(ssi) imm=%d",cpu->stage[decode_rename1].imm);
 			break;
 		case fmt_ss:
-			cpu->stage[decode].sr1=(inst&0x000f0000)>>16;
-			cpu->stage[decode].op1Valid=0;
-			cpu->stage[decode].sr2=(inst&0x0000f000)>>12;
-			cpu->stage[decode].op2Valid=0;
-			reportStage(cpu,decode,"decode(ss)");
-			cpu->stage[decode].fu=alu_fu;
+			cpu->stage[decode_rename1].sr1=(inst&0x000f0000)>>16;
+			cpu->stage[decode_rename1].op1Valid=0;
+			cpu->stage[decode_rename1].sr2=(inst&0x0000f000)>>12;
+			cpu->stage[decode_rename1].op2Valid=0;
+			reportStage(cpu,decode_rename1,"decode(ss)");
+			cpu->stage[decode_rename1].fu=alu_fu;
 			break;
 		case fmt_off:
-			cpu->stage[decode].offset=((inst&0x0000ffff)<<16)>>16;
-			cpu->stage[decode].op1Valid=1;
-			cpu->stage[decode].op2Valid=1;
-			reportStage(cpu,decode,"decode(off)");
-			cpu->stage[decode].fu=br_fu;
+			cpu->stage[decode_rename1].offset=((inst&0x0000ffff)<<16)>>16;
+			cpu->stage[decode_rename1].op1Valid=1;
+			cpu->stage[decode_rename1].op2Valid=1;
+			reportStage(cpu,decode_rename1,"decode(off)");
+			cpu->stage[decode_rename1].fu=br_fu;
 			break;
 		default :
 			cpu->stop=1;
@@ -400,35 +411,35 @@ void cycle_decode(cpu cpu) {
 }
 
 void cycle_dispatch(cpu cpu) {
-	if (cpu->stage[decode].status!=stage_actionComplete) return;
+	if (cpu->stage[decode_rename1].status!=stage_actionComplete) return;
 	// Move decoded instruction onto fu
-	enum fu_enum fu=cpu->stage[decode].fu;
+	enum fu_enum fu=cpu->stage[decode_rename1].fu;
 	if (cpu->stage[fu].status==stage_noAction ||
 			cpu->stage[fu].status==stage_squashed ||
 			cpu->stage[fu].status==stage_actionComplete) {
 		// fu is available...
 		// Don't issue until operands are available
-		if (cpu->stage[decode].op1Valid==0) {
-			reportStage(cpu,decode,"Waiting for first operand");
-			cpu->stage[decode].status=stage_stalled;
+		if (cpu->stage[decode_rename1].op1Valid==0) {
+			reportStage(cpu,decode_rename1,"Waiting for first operand");
+			cpu->stage[decode_rename1].status=stage_stalled;
 			return;
 		}
-		if (cpu->stage[decode].op2Valid==0) {
-			reportStage(cpu,decode,"Waiting for second operand");
-			cpu->stage[decode].status=stage_stalled;
+		if (cpu->stage[decode_rename1].op2Valid==0) {
+			reportStage(cpu,decode_rename1,"Waiting for second operand");
+			cpu->stage[decode_rename1].status=stage_stalled;
 			return;
 		}
 		// Operands are valid... issue to fu
-		cpu->stage[fu]=cpu->stage[decode];
+		cpu->stage[fu]=cpu->stage[decode_rename1];
 		cpu->stage[fu].status=stage_ready;
 		cpu->stage[fu].report[0]='\0';
-		reportStage(cpu,decode," issued to fu %d",fu);
-		cpu->stage[decode].status=stage_actionComplete;
+		reportStage(cpu,decode_rename1," issued to fu %d",fu);
+		cpu->stage[decode_rename1].status=stage_actionComplete;
 	} else {
 		// fu is not available, issue needs to stall
-		reportStage(cpu,decode,"Required FU busy, status=%s",
+		reportStage(cpu,decode_rename1,"Required FU busy, status=%s",
 			statusString(cpu->stage[fu].status));
-		cpu->stage[decode].status=stage_stalled;
+		cpu->stage[decode_rename1].status=stage_stalled;
 	}
 }
 
@@ -437,7 +448,7 @@ void cycle_stage(cpu cpu,int stage) {
 		if (cpu->stage[s].status==stage_stalled) return; // downstream is stalled
 	}
 	if (cpu->stage[stage].status==stage_squashed) return;
-	assert(stage>=fetch && stage<=writeback);
+	assert(stage>=fetch && stage<=retire);
 	assert(cpu->stage[stage].opcode>=0 && cpu->stage[stage].opcode<=HALT);
 	opStageFn stageFn=opFns[stage][cpu->stage[stage].opcode];
 	if (stageFn) {
@@ -448,7 +459,7 @@ void cycle_stage(cpu cpu,int stage) {
 	} // else {
 		// cpu->stage[stage].status=stage_noAction;
 	// }
-	if (stage==writeback && cpu->stage[writeback].status!=stage_squashed) {
+	if (stage==retire && cpu->stage[retire].status!=stage_squashed) {
 		cpu->instr_retired++;
 	}
 }
