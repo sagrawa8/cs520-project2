@@ -4,6 +4,9 @@
   "terminal.integrated.enablePersistentSessions": false,
   "files.associations": {
     "rob.h": "c",
-    "stdarg.h": "c"
+    "stdarg.h": "c",
+    "string.h": "c",
+    "apexmem.h": "c",
+    "chrono": "c"
   }
 }

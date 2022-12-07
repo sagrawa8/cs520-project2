@@ -3,6 +3,7 @@
 #include <assert.h>
 #include "apexCPU.h"
 #include "apexMem.h"
+#include "rob.c" 
 
 /*---------------------------------------------------------
    Internal function declarations
@@ -55,6 +56,7 @@ void initCPU(cpu cpu) {
 	cpu->instr_retired=0;
 	cpu->halt_fetch=0;
 	cpu->stop=0;
+	cpu->last = NULL;
 	for(enum stage_enum i=fetch;i<=writeback;i++) {
 		cpu->stage[i].status=stage_squashed;
 		cpu->stage[i].report[0]='\0';
@@ -149,6 +151,8 @@ void cycleCPU(cpu cpu) {
 		printf("CPU is stopped for %s. No cycles allowed.\n",cpu->abend);
 		return;
 	}
+	
+	//cpu->last = addEnd(cpu->last, 1,ADD,0,1,1);
 
 	// First, cycle stage data from FU to WB
 	// Resolve which FU forwards to WB (if any)

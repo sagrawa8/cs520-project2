@@ -1,6 +1,5 @@
 #ifndef APEXCPU_H // Guard against recursive includes
 #define APEXCPU_H
-//#include "rob.h" 
 #include <stdarg.h>
 // To enable reportStage
 
@@ -81,6 +80,7 @@ struct apexCPU_struct {
 	int stop;
 	char abend[64];
 	struct fwdBus_struct fwdBus[3];
+	struct Rob_Node* last;
 };
 typedef struct apexCPU_struct * cpu;
 
