@@ -1,6 +1,5 @@
 #ifndef APEXCPU_H // Guard against recursive includes
 #define APEXCPU_H
-//#include "rob.h" 
 #include <stdarg.h>
 // To enable reportStage
 
@@ -14,13 +13,15 @@ enum stageStatus_enum {
 
 enum stage_enum {
 	fetch,
-	decode,
+	decode_rename1,
+	rename2_dispatch,
+	issue_instruction,
 	fu_alu1,fu_alu2,fu_alu3,
 	fu_mul1,fu_mul2,fu_mul3,
 	fu_ld1,fu_ld2,fu_ld3,
 	fu_st1,fu_st2,fu_st3,
 	fu_br1,fu_br2,fu_br3,
-	writeback
+	retire
 };
 
 enum fu_enum {
@@ -56,6 +57,7 @@ struct apexStage_struct {
 struct CC_struct {
 		int z;
 		int p;
+		int prf;
 	};
 
 struct fwdBus_struct {
@@ -64,12 +66,42 @@ struct fwdBus_struct {
 	int value;
 };
 
+struct iq {
+	int free;
+	int opcode;
+	enum fu_enum fu;
+	int src1_valid;
+  	int src1_tag;
+  	int src1_value;
+  	int src2_valid;
+  	int src2_tag;
+  	int src2_value;
+  	int lsq_prf;
+  	int dest;
+	int value;
+};
+
+
+struct rat {
+	int arf;
+	int valid;
+  	int prf;
+};
+
+struct prf {
+	int prf;
+	int valid;
+  	int value;
+	int z;
+	int p;
+};
+
 struct apexCPU_struct {
 	int pc;
 	int reg[16];
 	int regValid[16];
 	struct CC_struct cc;
-	struct apexStage_struct stage[writeback+1];
+	struct apexStage_struct stage[retire+1];
 	int codeMem[128]; // addresses 0x4000 - 0x4200
 	int dataMem[128]; // addresses 0x0000 - 0x0200
 	int lowMem;
@@ -81,12 +113,17 @@ struct apexCPU_struct {
 	int stop;
 	char abend[64];
 	struct fwdBus_struct fwdBus[3];
+	struct Rob_Node* rob_node;
+	struct LSQ_Node* lsq_node;
+	struct iq iq[32];
+	struct rat rat[16];
+	struct prf prf[32];
 };
 typedef struct apexCPU_struct * cpu;
 
 #define isFU(x) (x>=fu_alu1 && x<=fu_br3)
 
-extern char *stageName[writeback+1]; // defined/initialized in apexCPU.c
+extern char *stageName[retire+1]; // defined/initialized in apexCPU.c
 typedef void (*opStageFn)(cpu cpu); // Needed in apexOpcodes.h
 
 #include "apexOpcodes.h"

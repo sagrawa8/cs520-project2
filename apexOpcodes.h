@@ -64,7 +64,7 @@ extern struct opInfo_struct {
 ---------------------------------------------------------*/
 void registerAllOpcodes();
 void registerOpcode(int opNum,enum fu_enum fu,
-	opStageFn decodeFn,opStageFn executeFn1,
+	opStageFn decode_ren1,opStageFn ren2_dis,opStageFn issue,opStageFn executeFn1,
 	opStageFn executeFn2,opStageFn executeFn3,
 	opStageFn writebackFn);
 char * disassemble(int instruction,char *buf);

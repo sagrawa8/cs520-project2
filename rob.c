@@ -1,8 +1,17 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include "rob.h"
 
-struct Rob_Node* addToEmpty(struct Rob_Node* last, int free, enum opcode_enum opcode, int pc, int dest_arf , int dest_prf) {
+struct Rob_Node {
+  int free;
+  enum opcode_enum opcode;
+  int pc;
+  int dest_arf;
+  int dest_prf;
+  int lsq_index;
+  struct Rob_Node* next;
+};
+
+struct Rob_Node* addToEmptyROB(struct Rob_Node* last, int free, enum opcode_enum opcode, int pc, int dest_arf , int dest_prf) {
   if (last != NULL) return last;
 
   // allocate memory to the new Rob_Node
@@ -25,9 +34,9 @@ struct Rob_Node* addToEmpty(struct Rob_Node* last, int free, enum opcode_enum op
 }
 
 // add Rob_Node to the front
-struct Rob_Node* addFront(struct Rob_Node* last, int free, enum opcode_enum opcode, int pc, int dest_arf , int dest_prf) {
+struct Rob_Node* addFrontROB(struct Rob_Node* last, int free, enum opcode_enum opcode, int pc, int dest_arf , int dest_prf) {
   // check if the list is empty
-  if (last == NULL) return addToEmpty(last, free, opcode, pc, dest_arf ,dest_prf);
+  if (last == NULL) return addToEmptyROB(last, free, opcode, pc, dest_arf ,dest_prf);
 
   // allocate memory to the new Rob_Node
   struct Rob_Node* newRob_Node = (struct Rob_Node*)malloc(sizeof(struct Rob_Node));
@@ -49,9 +58,9 @@ struct Rob_Node* addFront(struct Rob_Node* last, int free, enum opcode_enum opco
 }
 
 // add Rob_Node to the end
-struct Rob_Node* addEnd(struct Rob_Node* last, int free, enum opcode_enum opcode, int pc, int dest_arf , int dest_prf) {
+struct Rob_Node* addEndROB(struct Rob_Node* last, int free, enum opcode_enum opcode, int pc, int dest_arf , int dest_prf) {
   // check if the Rob_Node is empty
-  if (last == NULL) return addToEmpty(last, free, opcode, pc, dest_arf ,dest_prf);
+  if (last == NULL) return addToEmptyROB(last, free, opcode, pc, dest_arf ,dest_prf);
 
   // allocate memory to the new Rob_Node
   struct Rob_Node* newRob_Node = (struct Rob_Node*)malloc(sizeof(struct Rob_Node));
@@ -75,7 +84,7 @@ struct Rob_Node* addEnd(struct Rob_Node* last, int free, enum opcode_enum opcode
   return last;
 }
 
-void traverse(struct Rob_Node* last) {
+void traverseROB(struct Rob_Node* last) {
   struct Rob_Node* p;
 
   if (last == NULL) {

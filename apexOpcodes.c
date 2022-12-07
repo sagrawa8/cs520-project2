@@ -1,11 +1,10 @@
- #include "apexOpcodes.h"
+#include "apexOpcodes.h"
 #include "apexCPU.h"
 #include "apexMem.h"
 #include "apexOpInfo.h" // OpInfo definition
 #include <string.h>
 #include <stdio.h>
 #include <assert.h>
-#include "rob.h"
 
 /*---------------------------------------------------------
 This file contains a C function for each opcode and
@@ -39,54 +38,69 @@ void exForward(cpu cpu,enum stage_enum stage);
 /*---------------------------------------------------------
   Global Variables
 ---------------------------------------------------------*/
-opStageFn opFns[5][NUMOPS]={NULL}; // Array of function pointers, one for each stage/opcode combination
+opStageFn opFns[retire+1][NUMOPS]={NULL}; // Array of function pointers, one for each stage/opcode combination
 
 
 /*---------------------------------------------------------
   Decode stage functions
 ---------------------------------------------------------*/
-void dss_decode(cpu cpu) {
+void dss_decode_ren1(cpu cpu) {
 	fetch_register1(cpu);
 	fetch_register2(cpu);
 	check_dest(cpu);
-	cpu->stage[decode].status=stage_actionComplete;
+	cpu->stage[decode_rename1].status=stage_actionComplete;
 }
-void dsi_decode(cpu cpu) {
+
+void dsi_decode_ren1(cpu cpu) {
 	fetch_register1(cpu);
 	// Second operand is immediate... no fetch required
 	check_dest(cpu);
-	cpu->stage[decode].status=stage_actionComplete;
+	cpu->stage[decode_rename1].status=stage_actionComplete;
 }
 
-void ssi_decode(cpu cpu) {
+void ssi_decode_ren1(cpu cpu) {
 	fetch_register1(cpu);
 	fetch_register2(cpu);
-	cpu->stage[decode].status=stage_actionComplete;
+	cpu->stage[decode_rename1].status=stage_actionComplete;
 }
 
-void movc_decode(cpu cpu) {
+void movc_decode_ren1(cpu cpu) {
 	check_dest(cpu);
-	cpu->stage[decode].status=stage_actionComplete;
+	cpu->stage[decode_rename1].status=stage_actionComplete;
 }
 
-void cbranch_decode(cpu cpu) {
-	cpu->stage[decode].branch_taken=0;
-	if (cpu->stage[decode].opcode==JUMP) cpu->stage[decode].branch_taken=1;
-	if (cpu->stage[decode].opcode==BZ && cpu->cc.z) cpu->stage[decode].branch_taken=1;
-	if (cpu->stage[decode].opcode==BNZ && !cpu->cc.z) cpu->stage[decode].branch_taken=1;
-	if (cpu->stage[decode].opcode==BP && cpu->cc.p) cpu->stage[decode].branch_taken=1;
-	if (cpu->stage[decode].opcode==BNP && !cpu->cc.p) cpu->stage[decode].branch_taken=1;
-	if (cpu->stage[decode].branch_taken) {
+void cbranch_decode_ren1(cpu cpu) {
+	cpu->stage[decode_rename1].branch_taken=0;
+	if (cpu->stage[decode_rename1].opcode==JUMP) cpu->stage[decode_rename1].branch_taken=1;
+	if (cpu->stage[decode_rename1].opcode==BZ && cpu->cc.z) cpu->stage[decode_rename1].branch_taken=1;
+	if (cpu->stage[decode_rename1].opcode==BNZ && !cpu->cc.z) cpu->stage[decode_rename1].branch_taken=1;
+	if (cpu->stage[decode_rename1].opcode==BP && cpu->cc.p) cpu->stage[decode_rename1].branch_taken=1;
+	if (cpu->stage[decode_rename1].opcode==BNP && !cpu->cc.p) cpu->stage[decode_rename1].branch_taken=1;
+	if (cpu->stage[decode_rename1].branch_taken) {
 		// Squash instruction currently in fetch
 		cpu->stage[fetch].instruction=0;
 		cpu->stage[fetch].status=stage_squashed;
 		reportStage(cpu,fetch," squashed by previous branch");
 		cpu->halt_fetch=1;
-		reportStage(cpu,decode," branch taken");
+		reportStage(cpu,decode_rename1," branch taken");
 	} else {
-	  reportStage(cpu,decode," branch not taken");
+	  reportStage(cpu,decode_rename1," branch not taken");
   }
-  cpu->stage[decode].status=stage_actionComplete;
+  cpu->stage[decode_rename1].status=stage_actionComplete;
+}
+
+void ren2_dis(cpu cpu) {
+	fetch_register1(cpu);
+	fetch_register2(cpu);
+	check_dest(cpu);
+	cpu->stage[decode_rename1].status=stage_actionComplete;
+}
+
+void issue(cpu cpu) {
+	fetch_register1(cpu);
+	fetch_register2(cpu);
+	check_dest(cpu);
+	cpu->stage[decode_rename1].status=stage_actionComplete;
 }
 
 /*---------------------------------------------------------
@@ -194,16 +208,16 @@ void store_memory(cpu cpu) {
   Writeback stage functions
 ---------------------------------------------------------*/
 void dest_writeback(cpu cpu) {
-	int reg=cpu->stage[writeback].dr;
-	cpu->reg[reg]=cpu->stage[writeback].result;
+	int reg=cpu->stage[retire].dr;
+	cpu->reg[reg]=cpu->stage[retire].result;
 	cpu->regValid[reg]=1;
-	reportStage(cpu,writeback,"R%02d<-%d",reg,cpu->stage[writeback].result);
+	reportStage(cpu,retire,"R%02d<-%d",reg,cpu->stage[retire].result);
 }
 
 void halt_writeback(cpu cpu) {
 	cpu->stop=1;
 	strcpy(cpu->abend,"HALT instruction retired");
-	reportStage(cpu,writeback,"cpu stopped");
+	reportStage(cpu,retire,"cpu stopped");
 }
 
 /*---------------------------------------------------------
@@ -213,36 +227,37 @@ void registerAllOpcodes() {
 	// Invoke registerOpcode for EACH valid opcode here
 	// New Code
 	// kanchan git push
-	registerOpcode(ADD,alu_fu,dss_decode,add_execute,fwd_execute,fwd_execute,dest_writeback);
-	registerOpcode(ADDL,alu_fu,dsi_decode,add_execute,fwd_execute,fwd_execute,dest_writeback);
-	registerOpcode(SUB,alu_fu,dss_decode,sub_execute,fwd_execute,fwd_execute,dest_writeback);
-	registerOpcode(SUBL,alu_fu,dsi_decode,sub_execute,fwd_execute,fwd_execute,dest_writeback);
-	registerOpcode(MUL,mult_fu,dss_decode,mul_execute,fwd_execute,fwd_execute,dest_writeback);
-	registerOpcode(AND,alu_fu,dss_decode,and_execute,fwd_execute,fwd_execute,dest_writeback);
-	registerOpcode(OR,alu_fu,dss_decode,or_execute,fwd_execute,fwd_execute,dest_writeback);
-	registerOpcode(XOR,alu_fu,dss_decode,xor_execute,fwd_execute,fwd_execute,dest_writeback);
-	registerOpcode(MOVC,alu_fu,movc_decode,movc_execute,fwd_execute,fwd_execute,dest_writeback);
-	registerOpcode(LOAD,load_fu,dsi_decode,load_execute,load_memory,fwd_execute,dest_writeback);
-	registerOpcode(STORE,store_fu,ssi_decode,store_execute,store_memory,fwd_execute,fwd_execute);
-	registerOpcode(CMP,alu_fu,ssi_decode,cmp_execute,fwd_execute,fwd_execute,NULL);
-	registerOpcode(JUMP,br_fu,cbranch_decode,cbranch_execute,fwd_execute,fwd_execute,NULL);
-	registerOpcode(BZ,br_fu,cbranch_decode,cbranch_execute,fwd_execute,fwd_execute,NULL);
-	registerOpcode(BNZ,br_fu,cbranch_decode,cbranch_execute,fwd_execute,fwd_execute,NULL);
-	registerOpcode(BP,br_fu,cbranch_decode,cbranch_execute,fwd_execute,fwd_execute,NULL);
-	registerOpcode(BNP,br_fu,cbranch_decode,cbranch_execute,fwd_execute,fwd_execute,NULL);
-	registerOpcode(HALT,alu_fu,NULL,fwd_execute,fwd_execute,fwd_execute,halt_writeback);
+	registerOpcode(ADD,alu_fu,dss_decode_ren1,ren2_dis,issue,add_execute,fwd_execute,fwd_execute,dest_writeback);
+	registerOpcode(ADDL,alu_fu,dsi_decode_ren1,ren2_dis,issue,add_execute,fwd_execute,fwd_execute,dest_writeback);
+	registerOpcode(SUB,alu_fu,dss_decode_ren1,ren2_dis,issue,sub_execute,fwd_execute,fwd_execute,dest_writeback);
+	registerOpcode(SUBL,alu_fu,dsi_decode_ren1,ren2_dis,issue,sub_execute,fwd_execute,fwd_execute,dest_writeback);
+	registerOpcode(MUL,mult_fu,dss_decode_ren1,ren2_dis,issue,mul_execute,fwd_execute,fwd_execute,dest_writeback);
+	registerOpcode(AND,alu_fu,dss_decode_ren1,ren2_dis,issue,and_execute,fwd_execute,fwd_execute,dest_writeback);
+	registerOpcode(OR,alu_fu,dss_decode_ren1,ren2_dis,issue,or_execute,fwd_execute,fwd_execute,dest_writeback);
+	registerOpcode(XOR,alu_fu,dss_decode_ren1,ren2_dis,issue,xor_execute,fwd_execute,fwd_execute,dest_writeback);
+	registerOpcode(MOVC,alu_fu,movc_decode_ren1,ren2_dis,issue,movc_execute,fwd_execute,fwd_execute,dest_writeback);
+	registerOpcode(LOAD,load_fu,dsi_decode_ren1,ren2_dis,issue,load_execute,load_memory,fwd_execute,dest_writeback);
+	registerOpcode(STORE,store_fu,ssi_decode_ren1,ren2_dis,issue,store_execute,store_memory,fwd_execute,fwd_execute);
+	registerOpcode(CMP,alu_fu,ssi_decode_ren1,ren2_dis,issue,cmp_execute,fwd_execute,fwd_execute,NULL);
+	registerOpcode(JUMP,br_fu,cbranch_decode_ren1,ren2_dis,issue,cbranch_execute,fwd_execute,fwd_execute,NULL);
+	registerOpcode(BZ,br_fu,cbranch_decode_ren1,ren2_dis,issue,cbranch_execute,fwd_execute,fwd_execute,NULL);
+	registerOpcode(BNZ,br_fu,cbranch_decode_ren1,ren2_dis,issue,cbranch_execute,fwd_execute,fwd_execute,NULL);
+	registerOpcode(BP,br_fu,cbranch_decode_ren1,ren2_dis,issue,cbranch_execute,fwd_execute,fwd_execute,NULL);
+	registerOpcode(BNP,br_fu,cbranch_decode_ren1,ren2_dis,issue,cbranch_execute,fwd_execute,fwd_execute,NULL);
+	registerOpcode(HALT,alu_fu,NULL,NULL,issue,fwd_execute,fwd_execute,fwd_execute,halt_writeback);
 }
 
 void registerOpcode(int opNum,enum fu_enum fu,
-	opStageFn decodeFn,opStageFn executeFn1,
+	opStageFn decode_ren1,opStageFn ren2_dis,opStageFn issue,opStageFn executeFn1,
 	opStageFn executeFn2,opStageFn executeFn3,
 	opStageFn writebackFn) {
-
-	opFns[decode][opNum]=decodeFn;
+	opFns[decode_rename1][opNum]=decode_ren1;
+	opFns[rename2_dispatch][opNum]=ren2_dis;
+	opFns[issue_instruction][opNum]=issue;
 	opFns[fu][opNum]=executeFn1;
 	opFns[fu+1][opNum]=executeFn2;
 	opFns[fu+2][opNum]=executeFn3;
-	opFns[writeback][opNum]=writebackFn;
+	opFns[retire][opNum]=writebackFn;
 }
 
 char * disassemble(int instruction,char *buf) {
@@ -320,32 +335,32 @@ int fetchRegister(cpu cpu,int reg,int *value) {
   Internal helper functions
 ---------------------------------------------------------*/
 void fetch_register1(cpu cpu) {
-	cpu->stage[decode].op1Valid=fetchRegister(cpu,cpu->stage[decode].sr1,&cpu->stage[decode].op1);
-	if (cpu->stage[decode].op1Valid) {
-		reportStage(cpu,decode," R%d=%d",cpu->stage[decode].sr1,cpu->stage[decode].op1);
+	cpu->stage[decode_rename1].op1Valid=fetchRegister(cpu,cpu->stage[decode_rename1].sr1,&cpu->stage[decode_rename1].op1);
+	if (cpu->stage[decode_rename1].op1Valid) {
+		reportStage(cpu,decode_rename1," R%d=%d",cpu->stage[decode_rename1].sr1,cpu->stage[decode_rename1].op1);
 	} else {
-		reportStage(cpu,decode," R%d invalid",cpu->stage[decode].sr1);
+		reportStage(cpu,decode_rename1," R%d invalid",cpu->stage[decode_rename1].sr1);
 	}
 }
 
 void fetch_register2(cpu cpu) {
-	cpu->stage[decode].op2Valid=fetchRegister(cpu,cpu->stage[decode].sr2,&cpu->stage[decode].op2);
-	if (cpu->stage[decode].op2Valid) {
-		reportStage(cpu,decode," R%d=%d",cpu->stage[decode].sr2,cpu->stage[decode].op2);
+	cpu->stage[decode_rename1].op2Valid=fetchRegister(cpu,cpu->stage[decode_rename1].sr2,&cpu->stage[decode_rename1].op2);
+	if (cpu->stage[decode_rename1].op2Valid) {
+		reportStage(cpu,decode_rename1," R%d=%d",cpu->stage[decode_rename1].sr2,cpu->stage[decode_rename1].op2);
 	} else {
-		reportStage(cpu,decode," R%d invalid",cpu->stage[decode].sr2);
+		reportStage(cpu,decode_rename1," R%d invalid",cpu->stage[decode_rename1].sr2);
 	}
 }
 
 void check_dest(cpu cpu) {
-	int reg=cpu->stage[decode].dr;
+	int reg=cpu->stage[decode_rename1].dr;
 	if (!cpu->regValid[reg]) {
-		cpu->stage[decode].status=stage_stalled;
-		reportStage(cpu,decode," R%d invalid",reg);
+		cpu->stage[decode_rename1].status=stage_stalled;
+		reportStage(cpu,decode_rename1," R%d invalid",reg);
 	}
-	if (cpu->stage[decode].status!=stage_stalled)  {
-		 cpu->regValid[cpu->stage[decode].dr]=0;
-		 reportStage(cpu,decode," invalidate R%d",reg);
+	if (cpu->stage[decode_rename1].status!=stage_stalled)  {
+		 cpu->regValid[cpu->stage[decode_rename1].dr]=0;
+		 reportStage(cpu,decode_rename1," invalidate R%d",reg);
 	}
 }
 
