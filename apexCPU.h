@@ -113,8 +113,6 @@ struct apexCPU_struct {
 	int stop;
 	char abend[64];
 	struct fwdBus_struct fwdBus[3];
-	struct Rob_Node* rob_node;
-	struct LSQ_Node* lsq_node;
 	struct iq iq[32];
 	struct rat rat[16];
 	struct prf prf[32];

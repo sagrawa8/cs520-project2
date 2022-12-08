@@ -58,6 +58,9 @@ void dsi_decode_ren1(cpu cpu) {
 	rob_insert(cpu);
 	fetch_register1(cpu);
 	// Second operand is immediate... no fetch required
+	if(cpu->stage[rename2_dispatch].opcode == LOAD){
+			//enQueueLSQ();
+	}
 	cpu->stage[decode_rename1].status=stage_actionComplete;
 }
 
@@ -65,6 +68,7 @@ void ssi_decode_ren1(cpu cpu) {
 	rob_insert(cpu);
 	fetch_register1(cpu);
 	fetch_register2(cpu);
+	//enQueueLSQ();
 	cpu->stage[decode_rename1].status=stage_actionComplete;
 }
 
@@ -96,6 +100,28 @@ void cbranch_decode_ren1(cpu cpu) {
 }
 
 void ren2_dis(cpu cpu) {
+	for(int i=0;i<33;i++){
+		if(!cpu->iq[i].opcode){
+			cpu->iq[i].free= 1;
+			cpu->iq[i].opcode= cpu->stage[rename2_dispatch].opcode ;
+			cpu->iq[i].fu = cpu->stage[rename2_dispatch].fu;
+			cpu->iq[i].src1_valid = cpu->stage[rename2_dispatch].op1Valid ;
+  			cpu->iq[i].src1_tag = cpu->rat[cpu->stage[rename2_dispatch].sr1].prf;
+  			cpu->iq[i].src1_value = cpu->stage[rename2_dispatch].op1;
+  			cpu->iq[i].src2_valid = cpu->stage[rename2_dispatch].op2Valid ;
+  			cpu->iq[i].src2_tag = cpu->rat[cpu->stage[rename2_dispatch].sr2].prf;
+  			cpu->iq[i].src2_value = cpu->stage[rename2_dispatch].op2;
+			if(cpu->stage[rename2_dispatch].opcode == LOAD || cpu->stage[rename2_dispatch].opcode == STORE){
+				cpu->iq[i].lsq_prf = 1;
+			}
+  			else{
+				cpu->iq[i].lsq_prf = 0;
+			}
+  			cpu->iq[i].dest = cpu->rat[cpu->stage[rename2_dispatch].dr].prf;
+			//cpu->iq[i].value;
+			break;
+		}
+	}
 }
 
 void issue(cpu cpu) {
@@ -332,13 +358,13 @@ int fetchRegister(cpu cpu,int reg,int *value) {
 		return 1;
 	}
 	int found_prf;
-	if(cpu->rat[reg].valid)
+	if(cpu->rat[reg].valid){
 		found_prf = cpu->rat[reg].prf;
 		if(cpu->prf[found_prf].valid){
 			(*value) = cpu->prf[found_prf].value;
 			reportStage(cpu,decode_rename1," R%d=%d",reg,cpu->prf[found_prf].value);
 			return 1;
-		}
+		}}
 	else{
 		if (cpu->regValid[reg]) {
 			(*value)=cpu->reg[reg];
@@ -398,7 +424,5 @@ void exForward(cpu cpu,enum stage_enum stage) {
 
 
 void rob_insert(cpu cpu){
-	cpu->rob_node = addEndROB(cpu->rob_node, 
-	1,cpu->stage[decode_rename1].opcode,cpu->stage[decode_rename1].pc,
-	cpu->stage[decode_rename1].dr,cpu->rat[cpu->stage[decode_rename1].dr].prf);
+	//enQueueROB();
 }

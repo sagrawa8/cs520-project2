@@ -1,106 +1,79 @@
 #include <stdio.h>
-#include <stdlib.h>
 
-struct Rob_Node {
+#define ROB_SIZE 32
+
+typedef struct Rob {
   int free;
   enum opcode_enum opcode;
   int pc;
   int dest_arf;
   int dest_prf;
   int lsq_index;
-  struct Rob_Node* next;
-};
+}rob;
 
-struct Rob_Node* addToEmptyROB(struct Rob_Node* last, int free, enum opcode_enum opcode, int pc, int dest_arf , int dest_prf) {
-  if (last != NULL) return last;
+rob rob_queue[ROB_SIZE];
+int front_rob = -1, rear_rob = -1;
 
-  // allocate memory to the new Rob_Node
-  struct Rob_Node* newRob_Node = (struct Rob_Node*)malloc(sizeof(struct Rob_Node));
-
-  // assign data to the new Rob_Node
-  newRob_Node->free = free;
-  newRob_Node->opcode = opcode;
-  newRob_Node->pc = pc;
-  newRob_Node->dest_arf = dest_arf;
-  newRob_Node->dest_prf = dest_prf;
-
-  // assign last to newRob_Node
-  last = newRob_Node;
-
-  // create link to iteself
-  last->next = last;
-
-  return last;
+// Check if the queue is full
+int isFullROB() {
+  if ((front_rob == rear_rob + 1) || (front_rob == 0 && rear_rob == ROB_SIZE - 1)) return 1;
+  return 0;
 }
 
-// add Rob_Node to the front
-struct Rob_Node* addFrontROB(struct Rob_Node* last, int free, enum opcode_enum opcode, int pc, int dest_arf , int dest_prf) {
-  // check if the list is empty
-  if (last == NULL) return addToEmptyROB(last, free, opcode, pc, dest_arf ,dest_prf);
-
-  // allocate memory to the new Rob_Node
-  struct Rob_Node* newRob_Node = (struct Rob_Node*)malloc(sizeof(struct Rob_Node));
-
-  // add data to the Rob_Node
-  newRob_Node->free = free;
-  newRob_Node->opcode = opcode;
-  newRob_Node->pc = pc;
-  newRob_Node->dest_arf = dest_arf;
-  newRob_Node->dest_prf = dest_prf;
-
-  // store the address of the current first Rob_Node in the newRob_Node
-  newRob_Node->next = last->next;
-
-  // make newRob_Node as head
-  last->next = newRob_Node;
-
-  return last;
+// Check if the queue is empty
+int isEmptyROB() {
+  if (front_rob == -1) return 1;
+  return 0;
 }
 
-// add Rob_Node to the end
-struct Rob_Node* addEndROB(struct Rob_Node* last, int free, enum opcode_enum opcode, int pc, int dest_arf , int dest_prf) {
-  // check if the Rob_Node is empty
-  if (last == NULL) return addToEmptyROB(last, free, opcode, pc, dest_arf ,dest_prf);
-
-  // allocate memory to the new Rob_Node
-  struct Rob_Node* newRob_Node = (struct Rob_Node*)malloc(sizeof(struct Rob_Node));
-
-  // add data to the Rob_Node
-  newRob_Node->free = free;
-  newRob_Node->opcode = opcode;
-  newRob_Node->pc = pc;
-  newRob_Node->dest_arf = dest_arf;
-  newRob_Node->dest_prf = dest_prf;
-
-  // store the address of the head Rob_Node to next of newRob_Node
-  newRob_Node->next = last->next;
-
-  // point the current last Rob_Node to the newRob_Node
-  last->next = newRob_Node;
-
-  // make newRob_Node as the last Rob_Node
-  last = newRob_Node;
-
-  return last;
-}
-
-void traverseROB(struct Rob_Node* last) {
-  struct Rob_Node* p;
-
-  if (last == NULL) {
-  printf("The list is empty");
-  return;
+// Adding an element
+void enQueueROB(int free, enum opcode_enum opcode, int pc, int dest_arf , int dest_prf) {
+  if (isFullROB())
+    printf("\n Queue is full!! \n");
+  else {
+    if (front_rob == -1) front_rob = 0;
+  rear_rob = (rear_rob + 1) % ROB_SIZE;
+  rob_queue[rear_rob].free = free;
+  rob_queue[rear_rob].opcode = opcode;
+  rob_queue[rear_rob].pc = pc;
+  rob_queue[rear_rob].dest_arf = dest_arf;
+  rob_queue[rear_rob].dest_prf = dest_prf;
+    printf("\n Inserted -> %d", rob_queue[rear_rob].opcode);
   }
+}
 
-  p = last->next;
+// Removing an element
+void deQueueROB() {
+  if (isEmptyROB()) {
+    printf("\n Queue is empty !! \n");
+  } else {
+    if (front_rob == rear_rob) {
+      front_rob = -1;
+      rear_rob = -1;
+    } 
+    // Q has only one element, so we reset the 
+    // queue after dequeing it. ?
+    else {
+      front_rob = (front_rob + 1) % ROB_SIZE;
+    }
+  }
+}
 
-  do {
-  printf("%d ", p->free);
-  printf("%d ", p->opcode);
-  printf("%d ", p->pc);
-  printf("%d ", p->dest_arf);
-  printf("%d ", p->dest_prf);
-  p = p->next;
-
-  } while (p != last->next);
+// Display the queue
+void displayROB() {
+  int i;
+  if (isEmptyROB())
+    printf(" \n Empty Queue\n");
+  else {
+    printf("\n front_rob -> %d ", front_rob);
+    printf("\n Items -> ");
+    for (i = front_rob; i != rear_rob; i = (i + 1) % ROB_SIZE) {
+      printf("%d ", rob_queue[i].free);
+      printf("%d ", rob_queue[i].opcode);
+      printf("%d ", rob_queue[i].pc);
+      printf("%d ", rob_queue[i].dest_arf);
+      printf("%d ", rob_queue[i].dest_prf);
+      printf("%d ", rob_queue[i].lsq_index);
+    }
+  }
 }
