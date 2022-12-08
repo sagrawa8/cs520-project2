@@ -1,7 +1,8 @@
 #include <stdio.h>
-#include <stdlib.h>
 
-struct LSQ_Node {
+#define LSQ_SIZE 32
+
+typedef struct LSQ {
   int index;
   int free; 
   enum opcode_enum opcode;
@@ -14,10 +15,25 @@ struct LSQ_Node {
   int src2_value;
   int lsq_prf;
   int dest;
-  struct LSQ_Node* next;
-};
+}lsq;
 
-struct LSQ_Node* addToEmptyLSQ(struct LSQ_Node* last_lsq_node, int index,int free,enum opcode_enum opcode,enum fu_enum fu, 
+lsq lsq_queue[LSQ_SIZE];
+int front_lsq = -1, rear_lsq = -1;
+
+// Check if the queue is full
+int isFullLSQ() {
+  if ((front_lsq == rear_lsq + 1) || (front_lsq == 0 && rear_lsq == LSQ_SIZE - 1)) return 1;
+  return 0;
+}
+
+// Check if the queue is empty
+int isEmptyLSQ() {
+  if (front_lsq == -1) return 1;
+  return 0;
+}
+
+// Adding an element
+void enQueueLSQ(int index,int free,enum opcode_enum opcode,enum fu_enum fu, 
 int src1_valid,
   int src1_tag,
   int src1_value,
@@ -25,132 +41,66 @@ int src1_valid,
   int src2_tag,
   int src2_value,
   int lsq_prf,
-  int dest) {
-  if (last_lsq_node != NULL) return last_lsq_node;
-
-  // allocate memory to the new LSQ_Node
-  struct LSQ_Node* newLSQ_Node = (struct LSQ_Node*)malloc(sizeof(struct LSQ_Node));
-
-  // assign data to the new LSQ_Node
-  newLSQ_Node->index = index;
-  newLSQ_Node->free = free;
-  newLSQ_Node->opcode = opcode;
-  newLSQ_Node->fu = fu;
-  newLSQ_Node->src1_valid = src1_valid;
-  newLSQ_Node->src1_tag=src1_tag ;
-  newLSQ_Node->src1_value= src1_value;
-  newLSQ_Node->src2_valid = src2_valid;
-  newLSQ_Node->src2_tag=src2_tag;
-  newLSQ_Node->src2_value=src2_value;
-  newLSQ_Node->lsq_prf=lsq_prf;
-  newLSQ_Node->dest=dest;
-  // assign last_lsq_node to newLSQ_Node
-  last_lsq_node = newLSQ_Node;
-
-  // create link to iteself
-  last_lsq_node->next = last_lsq_node;
-
-  return last_lsq_node;
-}
-
-// add LSQ_Node to the front
-struct LSQ_Node* addFrontLSQ(struct LSQ_Node* last_lsq_node, int index,int free,enum opcode_enum opcode,enum fu_enum fu, 
-int src1_valid,
-  int src1_tag,
-  int src1_value,
-  int src2_valid,
-  int src2_tag,
-  int src2_value,
-  int lsq_prf,
-  int dest) {
-  // check if the list is empty
-  if (last_lsq_node == NULL) 
-  return addToEmptyLSQ(last_lsq_node,index,free,opcode,fu,src1_valid,src1_tag,src1_value,src2_valid,src2_tag,src2_value,lsq_prf,dest);
-
-  // allocate memory to the new LSQ_Node
-  struct LSQ_Node* newLSQ_Node = (struct LSQ_Node*)malloc(sizeof(struct LSQ_Node));
-
-  // add data to the LSQ_Node
-  newLSQ_Node->index = index;
-  newLSQ_Node->free = free;
-  newLSQ_Node->opcode = opcode;
-  newLSQ_Node->fu = fu;
-  newLSQ_Node->src1_valid = src1_valid;
-  newLSQ_Node->src1_tag=src1_tag ;
-  newLSQ_Node->src1_value= src1_value;
-  newLSQ_Node->src2_valid = src2_valid;
-  newLSQ_Node->src2_tag=src2_tag;
-  newLSQ_Node->src2_value=src2_value;
-  newLSQ_Node->lsq_prf=lsq_prf;
-  newLSQ_Node->dest=dest;
-
-  // store the address of the current first LSQ_Node in the newLSQ_Node
-  newLSQ_Node->next = last_lsq_node->next;
-
-  // make newLSQ_Node as head
-  last_lsq_node->next = newLSQ_Node;
-
-  return last_lsq_node;
-}
-
-// add LSQ_Node to the end
-struct LSQ_Node* addEndLSQ(struct LSQ_Node* last_lsq_node, int index,int free,enum opcode_enum opcode,enum fu_enum fu, 
-int src1_valid,
-  int src1_tag,
-  int src1_value,
-  int src2_valid,
-  int src2_tag,
-  int src2_value,
-  int lsq_prf,
-  int dest) {
-  // check if the LSQ_Node is empty
-  if (last_lsq_node == NULL)
-  return addToEmptyLSQ(last_lsq_node,index,free,opcode,fu,src1_valid,src1_tag,src1_value,src2_valid,src2_tag,src2_value,lsq_prf,dest);
-
-  // allocate memory to the new LSQ_Node
-  struct LSQ_Node* newLSQ_Node = (struct LSQ_Node*)malloc(sizeof(struct LSQ_Node));
-
-  // add data to the LSQ_Node
-  newLSQ_Node->index = index;
-  newLSQ_Node->free = free;
-  newLSQ_Node->opcode = opcode;
-  newLSQ_Node->fu = fu;
-  newLSQ_Node->src1_valid = src1_valid;
-  newLSQ_Node->src1_tag=src1_tag ;
-  newLSQ_Node->src1_value= src1_value;
-  newLSQ_Node->src2_valid = src2_valid;
-  newLSQ_Node->src2_tag=src2_tag;
-  newLSQ_Node->src2_value=src2_value;
-  newLSQ_Node->lsq_prf=lsq_prf;
-  newLSQ_Node->dest=dest;
-
-  // store the address of the head LSQ_Node to next of newLSQ_Node
-  newLSQ_Node->next = last_lsq_node->next;
-
-  // point the current last_lsq_node LSQ_Node to the newLSQ_Node
-  last_lsq_node->next = newLSQ_Node;
-
-  // make newLSQ_Node as the last_lsq_node LSQ_Node
-  last_lsq_node = newLSQ_Node;
-
-  return last_lsq_node;
-}
-
-void traverseLSQ(struct LSQ_Node* last_lsq_node) {
-  struct LSQ_Node* p;
-
-  if (last_lsq_node == NULL) {
-  printf("The list is empty");
-  return;
+  int dest)  {
+  if (isFullLSQ())
+    printf("\n Queue is full!! \n");
+  else {
+    if (front_lsq == -1) front_lsq = 0;
+    rear_lsq = (rear_lsq + 1) % LSQ_SIZE;
+  lsq_queue[rear_lsq].index = index;
+  lsq_queue[rear_lsq].free = free;
+  lsq_queue[rear_lsq].opcode = opcode;
+  lsq_queue[rear_lsq].fu = fu;
+  lsq_queue[rear_lsq].src1_valid = src1_valid;
+  lsq_queue[rear_lsq].src1_tag=src1_tag ;
+  lsq_queue[rear_lsq].src1_value= src1_value;
+  lsq_queue[rear_lsq].src2_valid = src2_valid;
+  lsq_queue[rear_lsq].src2_tag=src2_tag;
+  lsq_queue[rear_lsq].src2_value=src2_value;
+  lsq_queue[rear_lsq].lsq_prf=lsq_prf;
+  lsq_queue[rear_lsq].dest=dest;
   }
+}
 
-  p = last_lsq_node->next;
+// Removing an element
+void deQueueLSQ() {
 
-  do {
-  printf("%d ", p->index);
-  printf("%d ", p->free);
-  printf("%d ", p->opcode);
-  p = p->next;
+  if (isEmptyLSQ()) {
+    printf("\n Queue is empty !! \n");
+  } else {
+    if (front_lsq == rear_lsq) {
+      front_lsq = -1;
+      rear_lsq = -1;
+    } 
+    // Q has only one element, so we reset the 
+    // queue after dequeing it. ?
+    else {
+      front_lsq = (front_lsq + 1) % LSQ_SIZE;
+    }
+  }
+}
 
-  } while (p != last_lsq_node->next);
+// Display the queue
+void displayLSQ() {
+  int i;
+  if (isEmptyLSQ())
+    printf(" \n Empty Queue\n");
+  else {
+    printf("\n front_lsq -> %d ", front_lsq);
+    printf("\n Items -> ");
+    for (i = front_lsq; i != rear_lsq; i = (i + 1) % LSQ_SIZE) {
+      printf("%d ", lsq_queue[i].index);
+      printf("%d ", lsq_queue[i].free);
+      printf("%d ", lsq_queue[i].opcode);
+      printf("%d ", lsq_queue[i].fu);
+      printf("%d ", lsq_queue[i].src1_valid);
+      printf("%d ", lsq_queue[i].src1_tag);
+      printf("%d ", lsq_queue[i].src1_value);
+      printf("%d ", lsq_queue[i].src2_valid);
+      printf("%d ", lsq_queue[i].src2_tag);
+      printf("%d ", lsq_queue[i].src2_value);
+      printf("%d ", lsq_queue[i].lsq_prf);
+      printf("%d ", lsq_queue[i].dest);
+    }
+  }
 }

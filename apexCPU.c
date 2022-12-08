@@ -61,8 +61,6 @@ void initCPU(cpu cpu) {
 	cpu->instr_retired=0;
 	cpu->halt_fetch=0;
 	cpu->stop=0;
-	cpu->rob_node = NULL;
-	cpu->lsq_node = NULL;
 	for(enum stage_enum i=fetch;i<=retire;i++) {
 		cpu->stage[i].status=stage_squashed;
 		cpu->stage[i].report[0]='\0';
