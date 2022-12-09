@@ -424,5 +424,6 @@ void exForward(cpu cpu,enum stage_enum stage) {
 
 
 void rob_insert(cpu cpu){
-	//enQueueROB();
+	enQueueROB(1,cpu->stage[decode_rename1].opcode,cpu->stage[decode_rename1].pc,
+	cpu->stage[decode_rename1].dr,cpu->rat[cpu->stage[decode_rename1].dr].prf);
 }
