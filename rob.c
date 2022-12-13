@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include "apexCPU.h"
 
 #define ROB_SIZE 32
 
@@ -24,6 +25,17 @@ int isFullROB() {
 int isEmptyROB() {
   if (front_rob == -1) return 1;
   return 0;
+}
+
+
+void retire_ins(cpu cpu){
+  if(cpu->prf[rob_queue[front_rob].dest_prf].valid){
+    int reg=cpu->stage[retire].dr;
+	  cpu->reg[reg]=cpu->prf[rob_queue[front_rob].dest_prf].value;
+    rob_queue[front_rob].free=0;
+	  deQueueROB();    
+	  reportStage(cpu,retire,"R%02d<-%d",reg,cpu->stage[retire].result);
+  }
 }
 
 // Adding an element
@@ -59,6 +71,8 @@ void deQueueROB() {
   }
 }
 
+
+
 // Display the queue
 void displayROB() {
   int i;
@@ -77,3 +91,14 @@ void displayROB() {
     }
   }
 }
+
+
+int getPCFromROB(int current_pc) {
+  for(int i=0;i<ROB_SIZE;i++){
+    if(rob_queue[i].pc==current_pc){
+      return rob_queue[i].dest_prf;
+    }
+  }
+  return 0;
+}
+

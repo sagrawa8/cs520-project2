@@ -33,7 +33,7 @@ int isEmptyLSQ() {
 }
 
 // Adding an element
-void enQueueLSQ(int index,int free,enum opcode_enum opcode,enum fu_enum fu, 
+void enQueueLSQ(int free,enum opcode_enum opcode,enum fu_enum fu, 
 int src1_valid,
   int src1_tag,
   int src1_value,
@@ -46,8 +46,8 @@ int src1_valid,
     printf("\n Queue is full!! \n");
   else {
     if (front_lsq == -1) front_lsq = 0;
-    rear_lsq = (rear_lsq + 1) % LSQ_SIZE;
-  lsq_queue[rear_lsq].index = index;
+
+  lsq_queue[rear_lsq].index = rear_lsq;
   lsq_queue[rear_lsq].free = free;
   lsq_queue[rear_lsq].opcode = opcode;
   lsq_queue[rear_lsq].fu = fu;
@@ -59,6 +59,7 @@ int src1_valid,
   lsq_queue[rear_lsq].src2_value=src2_value;
   lsq_queue[rear_lsq].lsq_prf=lsq_prf;
   lsq_queue[rear_lsq].dest=dest;
+  rear_lsq = (rear_lsq + 1) % LSQ_SIZE;
   }
 }
 

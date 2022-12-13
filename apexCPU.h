@@ -16,21 +16,20 @@ enum stage_enum {
 	decode_rename1,
 	rename2_dispatch,
 	issue_instruction,
-	fu_alu1,fu_alu2,fu_alu3,
+	fu_alu,
 	fu_mul1,fu_mul2,fu_mul3,
-	fu_ld1,fu_ld2,fu_ld3,
-	fu_st1,fu_st2,fu_st3,
-	fu_br1,fu_br2,fu_br3,
+	fu_lsa,
+	fu_br,
 	retire
 };
 
 enum fu_enum {
 	no_fu=0, // TODO: Can we get rid of this???
-	alu_fu=fu_alu1,  // Is mapping to first stage useful?
+	alu_fu=fu_alu,  // Is mapping to first stage useful?
 	mult_fu=fu_mul1,
-	load_fu=fu_ld1,
-	store_fu=fu_st1,
-	br_fu=fu_br1
+	load_fu=fu_lsa,
+	store_fu=fu_lsa,
+	br_fu=fu_br
 };
 
 struct apexStage_struct {
@@ -48,6 +47,7 @@ struct apexStage_struct {
 	int op2Valid;
 	int op2;
 	int result;
+	int dest_prf;
 	int effectiveAddr;
 	char report[128];
 	enum stageStatus_enum status;
@@ -116,6 +116,8 @@ struct apexCPU_struct {
 	struct iq iq[32];
 	struct rat rat[16];
 	struct prf prf[32];
+	int cc_set;
+	int pc_set;
 };
 typedef struct apexCPU_struct * cpu;
 

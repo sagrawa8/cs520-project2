@@ -35,7 +35,6 @@ void check_dest(cpu cpu);
 void set_conditionCodes(cpu cpu,enum stage_enum stage);
 void exForward(cpu cpu,enum stage_enum stage);
 void rob_insert(cpu cpu);
-
 /*---------------------------------------------------------
   Global Variables
 ---------------------------------------------------------*/
@@ -59,7 +58,7 @@ void dsi_decode_ren1(cpu cpu) {
 	fetch_register1(cpu);
 	// Second operand is immediate... no fetch required
 	if(cpu->stage[rename2_dispatch].opcode == LOAD){
-			//enQueueLSQ();
+			enQueueLSQ(1,LOAD,0,0,0,0,0,0,0,cpu->stage[rename2_dispatch].sr1);
 	}
 	cpu->stage[decode_rename1].status=stage_actionComplete;
 }
@@ -68,7 +67,7 @@ void ssi_decode_ren1(cpu cpu) {
 	rob_insert(cpu);
 	fetch_register1(cpu);
 	fetch_register2(cpu);
-	//enQueueLSQ();
+	enQueueLSQ(1,STORE,0,0,0,0,0,0,0,cpu->stage[rename2_dispatch].sr1);
 	cpu->stage[decode_rename1].status=stage_actionComplete;
 }
 
@@ -81,6 +80,7 @@ void movc_decode_ren1(cpu cpu) {
 void cbranch_decode_ren1(cpu cpu) {
 	rob_insert(cpu);
 	cpu->stage[decode_rename1].branch_taken=0;
+	cpu->pc_set = cpu->stage[decode_rename1].pc;
 	if (cpu->stage[decode_rename1].opcode==JUMP) cpu->stage[decode_rename1].branch_taken=1;
 	if (cpu->stage[decode_rename1].opcode==BZ && cpu->cc.z) cpu->stage[decode_rename1].branch_taken=1;
 	if (cpu->stage[decode_rename1].opcode==BNZ && !cpu->cc.z) cpu->stage[decode_rename1].branch_taken=1;
@@ -97,6 +97,7 @@ void cbranch_decode_ren1(cpu cpu) {
 	  reportStage(cpu,decode_rename1," branch not taken");
   }
   cpu->stage[decode_rename1].status=stage_actionComplete;
+
 }
 
 void ren2_dis(cpu cpu) {
@@ -111,102 +112,180 @@ void ren2_dis(cpu cpu) {
   			cpu->iq[i].src2_valid = cpu->stage[rename2_dispatch].op2Valid ;
   			cpu->iq[i].src2_tag = cpu->rat[cpu->stage[rename2_dispatch].sr2].prf;
   			cpu->iq[i].src2_value = cpu->stage[rename2_dispatch].op2;
+			cpu->iq[i].dest = cpu->rat[cpu->stage[rename2_dispatch].dr].prf;
 			if(cpu->stage[rename2_dispatch].opcode == LOAD || cpu->stage[rename2_dispatch].opcode == STORE){
 				cpu->iq[i].lsq_prf = 1;
 			}
   			else{
 				cpu->iq[i].lsq_prf = 0;
 			}
-  			cpu->iq[i].dest = cpu->rat[cpu->stage[rename2_dispatch].dr].prf;
-			//cpu->iq[i].value;
+			if(cpu->stage[rename2_dispatch].opcode == BZ 
+			|| cpu->stage[rename2_dispatch].opcode == BNZ 
+			|| cpu->stage[rename2_dispatch].opcode == BP 
+			|| cpu->stage[rename2_dispatch].opcode == BNP){
+				if(cpu->cc_set){
+					cpu->iq[i].src1_valid = 1;
+					cpu->iq[i].src1_tag = cpu->cc.prf;
+					cpu->iq[i].dest = getPCFromROB(cpu->pc_set);
+				}
+			}
 			break;
 		}
 	}
 }
 
 void issue(cpu cpu) {
-	fetch_register1(cpu);
-	fetch_register2(cpu);
-	check_dest(cpu);
-	cpu->stage[decode_rename1].status=stage_actionComplete;
+	for(int i=0;i<32;i++){
+		if(cpu->iq[i].free && cpu->iq[i].src1_valid && cpu->iq[i].src2_valid){
+			enQueueIssue(cpu->stage[issue_instruction].fu,
+			cpu->stage[issue_instruction].opcode,
+			cpu->iq[i].src1_value,
+			cpu->iq[i].src2_value,
+			cpu->iq[i].dest);
+			cpu->iq[i].free = 0;
+		}
+	}
 }
+
+
+retire_ins(cpu);
 
 /*---------------------------------------------------------
   Execute stage functions
 ---------------------------------------------------------*/
 void add_execute(cpu cpu) {
-	cpu->stage[fu_alu1].result=cpu->stage[fu_alu1].op1+cpu->stage[fu_alu1].op2;
-	reportStage(cpu,fu_alu1,"res=%d+%d",cpu->stage[fu_alu1].op1,cpu->stage[fu_alu1].op2);
-	set_conditionCodes(cpu,fu_alu1);
-	exForward(cpu,fu_alu1);
+	cpu->stage[fu_alu].result=cpu->stage[fu_alu].op1+cpu->stage[fu_alu].op2;
+	reportStage(cpu,fu_alu,"res=%d+%d",cpu->stage[fu_alu].op1,cpu->stage[fu_alu].op2);
+	set_conditionCodes(cpu,fu_alu);
+	exForward(cpu,fu_alu);
+	cpu->prf[cpu->stage[fu_alu].dest_prf].valid = 1; 
+	cpu->prf[cpu->stage[fu_alu].dest_prf].value = cpu->stage[fu_alu].result; 
+	if (cpu->stage[fu_alu].result==0) cpu->prf[cpu->stage[fu_alu].dest_prf].z=1;
+	else cpu->prf[cpu->stage[fu_alu].dest_prf].z=0;
+	if (cpu->stage[fu_alu].result > 0) cpu->prf[cpu->stage[fu_alu].dest_prf].p=1;
+	else cpu->prf[cpu->stage[fu_alu].dest_prf].p=0;
+	
 }
 
 void sub_execute(cpu cpu) {
-	cpu->stage[fu_alu1].result=cpu->stage[fu_alu1].op1-cpu->stage[fu_alu1].op2;
-	reportStage(cpu,fu_alu1,"res=%d-%d",cpu->stage[fu_alu1].op1,cpu->stage[fu_alu1].op2);
-	set_conditionCodes(cpu,fu_alu1);
-	exForward(cpu,fu_alu1);
+	cpu->stage[fu_alu].result=cpu->stage[fu_alu].op1-cpu->stage[fu_alu].op2;
+	reportStage(cpu,fu_alu,"res=%d-%d",cpu->stage[fu_alu].op1,cpu->stage[fu_alu].op2);
+	set_conditionCodes(cpu,fu_alu);
+	exForward(cpu,fu_alu);
+	cpu->prf[cpu->stage[fu_alu].dest_prf].valid = 1; 
+	cpu->prf[cpu->stage[fu_alu].dest_prf].value = cpu->stage[fu_alu].result; 
+	if (cpu->stage[fu_alu].result==0) cpu->prf[cpu->stage[fu_alu].dest_prf].z=1;
+	else cpu->prf[cpu->stage[fu_alu].dest_prf].z=0;
+	if (cpu->stage[fu_alu].result > 0) cpu->prf[cpu->stage[fu_alu].dest_prf].p=1;
+	else cpu->prf[cpu->stage[fu_alu].dest_prf].p=0;
 }
 
 void cmp_execute(cpu cpu) {
-	cpu->stage[fu_alu1].result=cpu->stage[fu_alu1].op1-cpu->stage[fu_alu1].op2;
-	reportStage(cpu,fu_alu1,"cc based on %d-%d",cpu->stage[fu_alu1].op1,cpu->stage[fu_alu1].op2);
-	set_conditionCodes(cpu,fu_alu1);
+	cpu->stage[fu_alu].result=cpu->stage[fu_alu].op1-cpu->stage[fu_alu].op2;
+	reportStage(cpu,fu_alu,"cc based on %d-%d",cpu->stage[fu_alu].op1,cpu->stage[fu_alu].op2);
+	set_conditionCodes(cpu,fu_alu);
 	// exForward(cpu);
 }
 
 void mul_execute(cpu cpu) {
-	cpu->stage[fu_alu1].result=cpu->stage[fu_alu1].op1*cpu->stage[fu_alu1].op2;
-	reportStage(cpu,fu_alu1,"res=%d*%d",cpu->stage[fu_alu1].op1,cpu->stage[fu_alu1].op2);
-	set_conditionCodes(cpu,fu_alu1);
-	exForward(cpu,fu_alu1);
+	cpu->stage[fu_mul1].result=cpu->stage[fu_mul1].op1*cpu->stage[fu_mul1].op2;
+	reportStage(cpu,fu_mul1,"res=%d*%d",cpu->stage[fu_mul1].op1,cpu->stage[fu_mul1].op2);
+	set_conditionCodes(cpu,fu_mul1);
+	exForward(cpu,fu_mul1);
+	if (cpu->stage[fu_mul1].result==0) cpu->prf[cpu->stage[fu_mul1].dest_prf].z=1;
+	else cpu->prf[cpu->stage[fu_mul1].dest_prf].z=0;
+	if (cpu->stage[fu_mul1].result > 0) cpu->prf[cpu->stage[fu_mul1].dest_prf].p=1;
+	else cpu->prf[cpu->stage[fu_mul1].dest_prf].p=0;
 }
 
 void and_execute(cpu cpu) {
-	cpu->stage[fu_alu1].result=cpu->stage[fu_alu1].op1&cpu->stage[fu_alu1].op2;
-	reportStage(cpu,fu_alu1,"res=%d&%d",cpu->stage[fu_alu1].op1,cpu->stage[fu_alu1].op2);
-	exForward(cpu,fu_alu1);
+	cpu->stage[fu_alu].result=cpu->stage[fu_alu].op1&cpu->stage[fu_alu].op2;
+	reportStage(cpu,fu_alu,"res=%d&%d",cpu->stage[fu_alu].op1,cpu->stage[fu_alu].op2);
+	exForward(cpu,fu_alu);
+	cpu->prf[cpu->stage[fu_alu].dest_prf].valid = 1; 
+	cpu->prf[cpu->stage[fu_alu].dest_prf].value = cpu->stage[fu_alu].result; 
+	if (cpu->stage[fu_alu].result==0) cpu->prf[cpu->stage[fu_alu].dest_prf].z=1;
+	else cpu->prf[cpu->stage[fu_alu].dest_prf].z=0;
+	if (cpu->stage[fu_alu].result > 0) cpu->prf[cpu->stage[fu_alu].dest_prf].p=1;
+	else cpu->prf[cpu->stage[fu_alu].dest_prf].p=0;
+
 }
 
 void or_execute(cpu cpu) {
-	cpu->stage[fu_alu1].result=cpu->stage[fu_alu1].op1|cpu->stage[fu_alu1].op2;
-	reportStage(cpu,fu_alu1,"res=%d|%d",cpu->stage[fu_alu1].op1,cpu->stage[fu_alu1].op2);
-	exForward(cpu,fu_alu1);
+	cpu->stage[fu_alu].result=cpu->stage[fu_alu].op1|cpu->stage[fu_alu].op2;
+	reportStage(cpu,fu_alu,"res=%d|%d",cpu->stage[fu_alu].op1,cpu->stage[fu_alu].op2);
+	exForward(cpu,fu_alu);
+	cpu->prf[cpu->stage[fu_alu].dest_prf].valid = 1; 
+	cpu->prf[cpu->stage[fu_alu].dest_prf].value = cpu->stage[fu_alu].result; 
+	if (cpu->stage[fu_alu].result==0) cpu->prf[cpu->stage[fu_alu].dest_prf].z=1;
+	else cpu->prf[cpu->stage[fu_alu].dest_prf].z=0;
+	if (cpu->stage[fu_alu].result > 0) cpu->prf[cpu->stage[fu_alu].dest_prf].p=1;
+	else cpu->prf[cpu->stage[fu_alu].dest_prf].p=0;
 }
 
 void xor_execute(cpu cpu) {
-	cpu->stage[fu_alu1].result=cpu->stage[fu_alu1].op1^cpu->stage[fu_alu1].op2;
-	reportStage(cpu,fu_alu1,"res=%d^%d",cpu->stage[fu_alu1].op1,cpu->stage[fu_alu1].op2);
-	exForward(cpu,fu_alu1);
+	cpu->stage[fu_alu].result=cpu->stage[fu_alu].op1^cpu->stage[fu_alu].op2;
+	reportStage(cpu,fu_alu,"res=%d^%d",cpu->stage[fu_alu].op1,cpu->stage[fu_alu].op2);
+	exForward(cpu,fu_alu);
+	cpu->prf[cpu->stage[fu_alu].dest_prf].valid = 1; 
+	cpu->prf[cpu->stage[fu_alu].dest_prf].value = cpu->stage[fu_alu].result; 
+	if (cpu->stage[fu_alu].result==0) cpu->prf[cpu->stage[fu_alu].dest_prf].z=1;
+	else cpu->prf[cpu->stage[fu_alu].dest_prf].z=0;
+	if (cpu->stage[fu_alu].result > 0) cpu->prf[cpu->stage[fu_alu].dest_prf].p=1;
+	else cpu->prf[cpu->stage[fu_alu].dest_prf].p=0;
 }
 
 void movc_execute(cpu cpu) {
-	cpu->stage[fu_alu1].result=cpu->stage[fu_alu1].op1;
-	reportStage(cpu,fu_alu1,"res=%d",cpu->stage[fu_alu1].result);
-	exForward(cpu,fu_alu1);
+	cpu->stage[fu_alu].result=cpu->stage[fu_alu].op1;
+	reportStage(cpu,fu_alu,"res=%d",cpu->stage[fu_alu].result);
+	exForward(cpu,fu_alu);
+	cpu->prf[cpu->stage[fu_alu].dest_prf].valid = 1; 
+	cpu->prf[cpu->stage[fu_alu].dest_prf].value = cpu->stage[fu_alu].result; 
+	if (cpu->stage[fu_alu].result==0) cpu->prf[cpu->stage[fu_alu].dest_prf].z=1;
+	else cpu->prf[cpu->stage[fu_alu].dest_prf].z=0;
+	if (cpu->stage[fu_alu].result > 0) cpu->prf[cpu->stage[fu_alu].dest_prf].p=1;
+	else cpu->prf[cpu->stage[fu_alu].dest_prf].p=0;
 }
 
 void load_execute(cpu cpu) {
-	cpu->stage[fu_ld1].effectiveAddr =
-		cpu->stage[fu_ld1].op1 + cpu->stage[fu_ld1].offset;
-	reportStage(cpu,fu_ld1,"effAddr=%08x",cpu->stage[fu_ld1].effectiveAddr);
+	cpu->stage[fu_lsa].effectiveAddr =
+		cpu->stage[fu_lsa].op1 + cpu->stage[fu_lsa].offset;
+	reportStage(cpu,fu_lsa,"effAddr=%08x",cpu->stage[fu_lsa].effectiveAddr);
+	cpu->prf[cpu->stage[fu_lsa].dest_prf].valid = 1; 
+	cpu->prf[cpu->stage[fu_lsa].dest_prf].value = cpu->stage[fu_lsa].result; 
+	if (cpu->stage[fu_lsa].result==0) cpu->prf[cpu->stage[fu_lsa].dest_prf].z=1;
+	else cpu->prf[cpu->stage[fu_lsa].dest_prf].z=0;
+	if (cpu->stage[fu_lsa].result > 0) cpu->prf[cpu->stage[fu_lsa].dest_prf].p=1;
+	else cpu->prf[cpu->stage[fu_lsa].dest_prf].p=0;
 }
 
 void store_execute(cpu cpu) {
-	cpu->stage[fu_st1].effectiveAddr =
-		cpu->stage[fu_st1].op2 + cpu->stage[fu_st1].imm;
-	reportStage(cpu,fu_st1,"effAddr=%08x",cpu->stage[fu_st1].effectiveAddr);
+	cpu->stage[fu_lsa].effectiveAddr =
+		cpu->stage[fu_lsa].op2 + cpu->stage[fu_lsa].imm;
+	reportStage(cpu,fu_lsa,"effAddr=%08x",cpu->stage[fu_lsa].effectiveAddr);
+	cpu->prf[cpu->stage[fu_lsa].dest_prf].valid = 1; 
+	cpu->prf[cpu->stage[fu_lsa].dest_prf].value = cpu->stage[fu_lsa].result; 
+	if (cpu->stage[fu_lsa].result==0) cpu->prf[cpu->stage[fu_lsa].dest_prf].z=1;
+	else cpu->prf[cpu->stage[fu_lsa].dest_prf].z=0;
+	if (cpu->stage[fu_lsa].result > 0) cpu->prf[cpu->stage[fu_lsa].dest_prf].p=1;
+	else cpu->prf[cpu->stage[fu_lsa].dest_prf].p=0;
 }
 
 void cbranch_execute(cpu cpu) {
-	if (cpu->stage[fu_br1].branch_taken) {
+	if (cpu->stage[fu_br].branch_taken) {
 		// Update PC
-		cpu->pc=cpu->stage[fu_br1].pc+cpu->stage[fu_br1].offset;
-		reportStage(cpu,fu_br1,"pc=%06x",cpu->pc);
+		cpu->pc=cpu->stage[fu_br].pc+cpu->stage[fu_br].offset;
+		reportStage(cpu,fu_br,"pc=%06x",cpu->pc);
 		cpu->halt_fetch=0; // Fetch can start again next cycle
 	} else {
-		reportStage(cpu,fu_br1,"No action... branch not taken");
+		reportStage(cpu,fu_br,"No action... branch not taken");
 	}
+	cpu->prf[cpu->stage[fu_br].dest_prf].valid = 1; 
+	cpu->prf[cpu->stage[fu_br].dest_prf].value = cpu->stage[fu_br].result; 
+	if (cpu->stage[fu_br].result==0) cpu->prf[cpu->stage[fu_br].dest_prf].z=1;
+	else cpu->prf[cpu->stage[fu_br].dest_prf].z=0;
+	if (cpu->stage[fu_br].result > 0) cpu->prf[cpu->stage[fu_br].dest_prf].p=1;
+	else cpu->prf[cpu->stage[fu_br].dest_prf].p=0;
 }
 
 void fwd_execute(cpu cpu) {
@@ -217,29 +296,26 @@ void fwd_execute(cpu cpu) {
   Memory  stage functions
 ---------------------------------------------------------*/
 void load_memory(cpu cpu) {
-	cpu->stage[fu_ld2].result = dfetch(cpu,cpu->stage[fu_ld2].effectiveAddr);
-	reportStage(cpu,fu_ld2,"res=MEM[%06x]",cpu->stage[fu_ld2].effectiveAddr);
+	cpu->stage[fu_lsa].result = dfetch(cpu,cpu->stage[fu_lsa].effectiveAddr);
+	reportStage(cpu,fu_lsa,"res=MEM[%06x]",cpu->stage[fu_lsa].effectiveAddr);
 	assert(cpu->fwdBus[1].valid==0); // load should not have used the ex forwarding bus
-	cpu->fwdBus[1].tag=cpu->stage[fu_ld2].dr;
-	cpu->fwdBus[1].value=cpu->stage[fu_ld2].result;
+	cpu->fwdBus[1].tag=cpu->stage[fu_lsa].dr;
+	cpu->fwdBus[1].value=cpu->stage[fu_lsa].result;
 	cpu->fwdBus[1].valid=1;
 }
 
 void store_memory(cpu cpu) {
-	dstore(cpu,cpu->stage[fu_st2].effectiveAddr,cpu->stage[fu_st2].op1);
-	reportStage(cpu,fu_st2,"MEM[%06x]=%d",
-		cpu->stage[fu_st2].effectiveAddr,
-		cpu->stage[fu_st2].op1);
+	dstore(cpu,cpu->stage[fu_lsa].effectiveAddr,cpu->stage[fu_lsa].op1);
+	reportStage(cpu,fu_lsa,"MEM[%06x]=%d",
+		cpu->stage[fu_lsa].effectiveAddr,
+		cpu->stage[fu_lsa].op1);
 }
 
 /*---------------------------------------------------------
   Writeback stage functions
 ---------------------------------------------------------*/
 void dest_writeback(cpu cpu) {
-	int reg=cpu->stage[retire].dr;
-	cpu->reg[reg]=cpu->stage[retire].result;
-	cpu->regValid[reg]=1;
-	reportStage(cpu,retire,"R%02d<-%d",reg,cpu->stage[retire].result);
+	retire_ins(cpu);
 }
 
 void halt_writeback(cpu cpu) {
@@ -253,8 +329,6 @@ void halt_writeback(cpu cpu) {
 ---------------------------------------------------------*/
 void registerAllOpcodes() {
 	// Invoke registerOpcode for EACH valid opcode here
-	// New Code
-	// kanchan git push
 	registerOpcode(ADD,alu_fu,dss_decode_ren1,ren2_dis,issue,add_execute,fwd_execute,fwd_execute,dest_writeback);
 	registerOpcode(ADDL,alu_fu,dsi_decode_ren1,ren2_dis,issue,add_execute,fwd_execute,fwd_execute,dest_writeback);
 	registerOpcode(SUB,alu_fu,dss_decode_ren1,ren2_dis,issue,sub_execute,fwd_execute,fwd_execute,dest_writeback);
@@ -410,6 +484,7 @@ void check_dest(cpu cpu) {
 
 void set_conditionCodes(cpu cpu,enum stage_enum stage) {
 	// Condition codes always set during the execute phase
+	cpu->cc_set = 1;
 	if (cpu->stage[stage].result==0) cpu->cc.z=1;
 	else cpu->cc.z=0;
 	if (cpu->stage[stage].result>0) cpu->cc.p=1;
@@ -427,3 +502,4 @@ void rob_insert(cpu cpu){
 	enQueueROB(1,cpu->stage[decode_rename1].opcode,cpu->stage[decode_rename1].pc,
 	cpu->stage[decode_rename1].dr,cpu->rat[cpu->stage[decode_rename1].dr].prf);
 }
+
