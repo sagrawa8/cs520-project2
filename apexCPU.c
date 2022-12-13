@@ -7,6 +7,7 @@
 #include "rob.c" 
 #include "lsq.c"
 #include "free_prf.c"
+#include "issue.c"
 
 /*---------------------------------------------------------
    Internal function declarations
@@ -22,25 +23,24 @@ char * statusString(enum stageStatus_enum st);
 /*---------------------------------------------------------
    Global Variables
 ---------------------------------------------------------*/
-char *stageName[retire+1]={"fetch","decode",
-	"alu1","alu2","alu3",
+char *stageName[retire+1]={"fetch","dec_ren1","ren2_disp","issue",
+	"alu",
 	"mul1","mul2","mul3",
-	"load1","load2","load3",
-	"store1","store2","store3",
-	"branch1","branch2","branch3",
-	"writeback"};
+	"lsa",
+	"br",
+	"retire"};
+
 extern opStageFn opFns[retire+1][NUMOPS]; // Array of function pointers, one for each stage/opcode combination
 enum stage_enum pipeEnd[retire+1]={
-	fetch, // For fetch
+	fetch, 
 	decode_rename1,
 	rename2_dispatch,
-	issue_instruction, // For decode
-	fu_alu3, fu_alu3, fu_alu3, // for alu fu
-	fu_mul3, fu_mul3, fu_mul3, // for mul fu
-	fu_ld3, fu_ld3, fu_ld3, // for load fu
-	fu_st3, fu_st3, fu_st3, // for store fu
-	fu_br3, fu_br3, fu_br3, // for br fu
-	retire // for writeback
+	issue_instruction,
+	fu_alu,
+	fu_mul3, fu_mul3, fu_mul3,
+	fu_lsa,
+	fu_br,
+	retire
 };
 
 /*---------------------------------------------------------
@@ -56,7 +56,8 @@ void initCPU(cpu cpu) {
 		cpu->reg[i]=0xdeadbeef;
 		cpu->regValid[i]=1; // all registers start out as "valid"
 	}
-	cpu->cc.z=cpu->cc.p=0;
+	cpu->cc.z=cpu->cc.p = 0;
+	
 	cpu->t=0;
 	cpu->instr_retired=0;
 	cpu->halt_fetch=0;
@@ -120,7 +121,10 @@ void printState(cpu cpu) {
 		if (cpu->stage[s].status==stage_noAction) continue;
 		if (cpu->stage[s].status==stage_squashed) continue;
 		// if (cpu->stage[s].status==stage_stalled) continue;
-		printf("  %10s: pc=%05x %s",stageName[s],cpu->stage[s].pc,disassemble(cpu->stage[s].instruction,instBuf));
+		printf("  %10s: ",stageName[s]);
+		if (cpu->stage[s].pc!=-1)
+			printf("pc=%05x %s %s",cpu->stage[s].pc,getInum(cpu,cpu->stage[s].pc),disassemble(cpu->stage[s].instruction,instBuf));
+		else printf("pc=-1");
 		//f (cpu->stage[s].status==stage_squashed) printf(" squashed");
 		//if (cpu->stage[s].status==stage_stalled) printf(" stalled");
 		printf(" %s\n",cpu->stage[s].report);
@@ -159,65 +163,57 @@ void cycleCPU(cpu cpu) {
 		printf("CPU is stopped for %s. No cycles allowed.\n",cpu->abend);
 		return;
 	}
-
-	//cpu->rob_node = addEndROB(cpu->rob_node, 1,ADD,0,1,1);
-	//cpu->lsq_node = addEndLSQ(cpu->lsq_node,0,1,SUB,fu_alu1,1,5,23,0,3,12,0,18);
-	//traverseLSQ(cpu->lsq_node);
-	// First, cycle stage data from FU to WB
-	// Resolve which FU forwards to WB (if any)
 	cpu->stage[retire].status=stage_noAction;
-	for(enum stage_enum fu=fu_alu3; fu<=fu_br3 && cpu->stage[retire].status==stage_noAction; fu+=3) {
-		if (cpu->stage[fu].status==stage_actionComplete) {
+	for(enum stage_enum fu=fu_alu; fu<=fu_br && cpu->stage[retire].status==stage_noAction; fu+=1) {
+		if (cpu->stage[fu].status==stage_actionComplete || cpu->stage[fu].status==stage_ready) {
 			cpu->stage[retire]=cpu->stage[fu];
 			cpu->stage[retire].status=stage_ready;
 			cpu->stage[fu].status=stage_noAction; // Available for new
 		}
 	}
+
 	if (cpu->stage[retire].status==stage_noAction) {
-		cpu->stage[retire].status=stage_stalled; // Nothing is ready to writeback
+		cpu->stage[retire].status=stage_squashed; // Nothing is ready to writeback
 		cpu->stage[retire].pc=-1;
 	}
 
-
-	// Next, forward through FU pipelines..
-	for(enum fu_enum fs=alu_fu; fs<=br_fu; fs+=3) {
-		if (cpu->stage[fs+2].status==stage_noAction ||
-				cpu->stage[fs+2].status==stage_squashed) {
-			cpu->stage[fs+2]=cpu->stage[fs+1];
-			cpu->stage[fs+1]=cpu->stage[fs];
-			cpu->stage[fs].status=stage_noAction; // Open up for issue
-			cpu->stage[fs].instruction=0;
-			cpu->stage[fs].opcode=0;
-			cpu->stage[fs].pc=-1;
+	cycle_dispatch(cpu);
+	if (cpu->stage[issue_instruction].status!=stage_stalled) {
+		if (cpu->stage[rename2_dispatch].status==stage_stalled ) {
+			cpu->stage[issue_instruction].status=stage_squashed;
+			cpu->stage[issue_instruction].instruction=0;
+			cpu->stage[issue_instruction].opcode=0;
+		} else {
+			cpu->stage[issue_instruction]=cpu->stage[rename2_dispatch];
+			cpu->stage[rename2_dispatch].status=stage_squashed;
+			cpu->stage[rename2_dispatch].instruction=0;
+			cpu->stage[rename2_dispatch].opcode=0;
+		} 
+	if (cpu->stage[rename2_dispatch].status!=stage_stalled) {
+		if (cpu->stage[decode_rename1].status==stage_stalled ) {
+			cpu->stage[rename2_dispatch].status=stage_squashed;
+			cpu->stage[rename2_dispatch].instruction=0;
+			cpu->stage[rename2_dispatch].opcode=0;
+		} else {
+			cpu->stage[rename2_dispatch]=cpu->stage[decode_rename1];
+			cpu->stage[decode_rename1].status=stage_squashed;
+			cpu->stage[decode_rename1].instruction=0;
+			cpu->stage[decode_rename1].opcode=0;
 		}
-	}
-
-	cycle_dispatch(cpu); //  dispatch/issue any decoded instruction to an FU
-	// Next, cycle stage data from Fetch to Decode and reset Fetch
-	if (cpu->stage[decode_rename1].status!=stage_stalled) {
+		if (cpu->stage[decode_rename1].status!=stage_stalled) {
 		if (cpu->stage[fetch].status==stage_stalled ) {
 			cpu->stage[decode_rename1].status=stage_squashed;
 			cpu->stage[decode_rename1].instruction=0;
 			cpu->stage[decode_rename1].opcode=0;
 		} else {
 			cpu->stage[decode_rename1]=cpu->stage[fetch];
-			// Reset the fetch stage
-			cpu->stage[fetch].status=stage_squashed; // No valid instruction available yet
+			cpu->stage[fetch].status=stage_squashed;
 			cpu->stage[fetch].instruction=0;
 			cpu->stage[fetch].opcode=0;
-		} // end of fetch not stalled
-	} // end of decode not stalled
-
-	// Move data forward in the forwarding busses
-	for (int c=2; c>0;c--) {
-		cpu->fwdBus[c]=cpu->fwdBus[c-1]; // Copy all fields forward
+		}
 	}
-	cpu->fwdBus[0].valid=0;
-	// NOTE: fowarding bus conflicts due to different FU completion times!
-	//	Conflict always "won" by latest instruction in program order
-	//   Hence, if a bus is valid, it should not be overwritten by an
-	//   instruction which finished later, but was earlier in the program
-	//   order.
+	}
+	}
 
 	// Reset the reports and status as required for all stages
 	for(int s=0;s<=retire;s++) {
@@ -234,8 +230,8 @@ void cycleCPU(cpu cpu) {
 	}
 
 	if (!cpu->stop) cycle_fetch(cpu);
-	if (!cpu->stop) cycle_decode(cpu); // Do the decode part of d/rf
-	for(enum fu_enum fu=alu_fu; fu<=br_fu+2; fu++) {
+	if (!cpu->stop) cycle_decode(cpu);
+	for(enum fu_enum fu=fu_alu; fu<=br_fu+2; fu++) {
 		if (!cpu->stop) cycle_stage(cpu,fu);
 	}
 
@@ -305,7 +301,7 @@ void reportStage(cpu cpu,enum stage_enum s,const char* fmt,...) {
 
 void cycle_fetch(cpu cpu) {
 	// Don't run if anything downstream is stalled
-	for(int s=1;s<5;s++) if (cpu->stage[s].status==stage_stalled) return;
+	for(int s=1;s<=retire;s++) if (cpu->stage[s].status==stage_stalled) return;
 	if (cpu->halt_fetch) {
 		cpu->stage[fetch].status=stage_squashed;
 		cpu->stage[fetch].instruction=0;
@@ -337,7 +333,7 @@ void cycle_fetch(cpu cpu) {
 void cycle_decode(cpu cpu) {
 	// Does the first half (the decode part) of the decode/fetch regs stage
 	if (cpu->stage[decode_rename1].status==stage_squashed) return;
-	if (cpu->stage[decode_rename1].status==stage_stalled) return; // Decode already done
+	//if (cpu->stage[decode_rename1].status==stage_stalled) return; // Decode already done
 	enum opFormat_enum fmt=opInfo[cpu->stage[decode_rename1].opcode].format;
 	int inst=cpu->stage[decode_rename1].instruction;
 	cpu->stage[decode_rename1].op1Valid=1;
