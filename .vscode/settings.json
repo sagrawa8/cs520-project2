@@ -8,6 +8,11 @@
     "string.h": "c",
     "apexmem.h": "c",
     "chrono": "c",
-    "apexcpu.h": "c"
+    "apexcpu.h": "c",
+    "istream": "c",
+    "ostream": "c",
+    "system_error": "c",
+    "cstdlib": "c",
+    "filesystem": "c"
   }
 }

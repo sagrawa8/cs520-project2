@@ -23,20 +23,12 @@ enum stage_enum {
 	retire
 };
 
-enum fu_enum {
-	no_fu=0, // TODO: Can we get rid of this???
-	alu_fu=fu_alu,  // Is mapping to first stage useful?
-	mult_fu=fu_mul1,
-	load_fu=fu_lsa,
-	store_fu=fu_lsa,
-	br_fu=fu_br
-};
 
 struct apexStage_struct {
 	int pc;
 	int instruction;
 	int opcode;
-	enum fu_enum fu;
+	enum stage_enum fu;
 	int dr;
 	int sr1;
 	int sr2;
@@ -59,16 +51,10 @@ struct CC_struct {
 		int prf;
 	};
 
-struct fwdBus_struct {
-	int tag;
-	int valid;
-	int value;
-};
-
 struct iq {
 	int free;
 	int opcode;
-	enum fu_enum fu;
+	enum stage_enum fu;
 	int src1_valid;
   	int src1_tag;
   	int src1_value;
@@ -111,7 +97,6 @@ struct apexCPU_struct {
 	int halt_fetch;
 	int stop;
 	char abend[64];
-	struct fwdBus_struct fwdBus[3];
 	struct iq iq[32];
 	struct rat_table rat[16];
 	struct prf_table prf[32];

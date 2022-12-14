@@ -62,7 +62,7 @@ extern struct opInfo_struct {
   Function declarations for externally available functions
 ---------------------------------------------------------*/
 void registerAllOpcodes();
-void registerOpcode(int opNum,enum fu_enum fu,
+void registerOpcode(int opNum,enum stage_enum fu,
 	opStageFn decode_ren1,opStageFn ren2_dis,opStageFn issue,opStageFn executeFn1,
 	opStageFn executeFn2,opStageFn executeFn3,
 	opStageFn writebackFn);

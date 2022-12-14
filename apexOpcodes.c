@@ -33,8 +33,8 @@ void fetch_register1(cpu cpu);
 void fetch_register2(cpu cpu);
 void check_dest(cpu cpu);
 void set_conditionCodes(cpu cpu,enum stage_enum stage);
-void exForward(cpu cpu,enum stage_enum stage);
 void rob_insert(cpu cpu);
+void updateIQ(cpu cpu,int dest);
 /*---------------------------------------------------------
   Global Variables
 ---------------------------------------------------------*/
@@ -136,12 +136,14 @@ void ren2_dis(cpu cpu) {
 	}
 }
 
-void issue(cpu cpu) {
+void issueInIq(cpu cpu) {
 	printf("Issue function called");
-	for(int i=0;i<32;i++){
+	int array_length = sizeof(cpu->iq)/sizeof(cpu->iq[0]);
+	for(int i=0;i<array_length;i++){
 		if(cpu->iq[i].free && cpu->iq[i].src1_valid && cpu->iq[i].src2_valid){
-			enQueueIssue(cpu->stage[issue_instruction].fu,
-			cpu->stage[issue_instruction].opcode,
+			enQueueIssue(
+			cpu->iq[i].opcode,
+			cpu->iq[i].fu,
 			cpu->iq[i].src1_value,
 			cpu->iq[i].src2_value,
 			cpu->iq[i].dest);
@@ -161,14 +163,13 @@ void add_execute(cpu cpu) {
 	cpu->stage[fu_alu].result=cpu->stage[fu_alu].op1+cpu->stage[fu_alu].op2;
 	reportStage(cpu,fu_alu,"res=%d+%d",cpu->stage[fu_alu].op1,cpu->stage[fu_alu].op2);
 	set_conditionCodes(cpu,fu_alu);
-	exForward(cpu,fu_alu);
 	cpu->prf[dest].valid = 1; 
 	cpu->prf[dest].value = cpu->stage[fu_alu].result; 
 	if (cpu->stage[fu_alu].result==0) cpu->prf[dest].z=1;
 	else cpu->prf[dest].z=0;
 	if (cpu->stage[fu_alu].result > 0) cpu->prf[dest].p=1;
 	else cpu->prf[dest].p=0;
-	
+	updateIQ(cpu,dest);
 }
 
 void sub_execute(cpu cpu) {
@@ -176,13 +177,13 @@ void sub_execute(cpu cpu) {
 	cpu->stage[fu_alu].result=cpu->stage[fu_alu].op1-cpu->stage[fu_alu].op2;
 	reportStage(cpu,fu_alu,"res=%d-%d",cpu->stage[fu_alu].op1,cpu->stage[fu_alu].op2);
 	set_conditionCodes(cpu,fu_alu);
-	exForward(cpu,fu_alu);
 	cpu->prf[dest].valid = 1; 
 	cpu->prf[dest].value = cpu->stage[fu_alu].result; 
 	if (cpu->stage[fu_alu].result==0) cpu->prf[dest].z=1;
 	else cpu->prf[dest].z=0;
 	if (cpu->stage[fu_alu].result > 0) cpu->prf[dest].p=1;
 	else cpu->prf[dest].p=0;
+	updateIQ(cpu,dest);
 }
 
 void cmp_execute(cpu cpu) {
@@ -198,66 +199,65 @@ void mul_execute(cpu cpu) {
 	cpu->stage[fu_mul1].result=cpu->stage[fu_mul1].op1*cpu->stage[fu_mul1].op2;
 	reportStage(cpu,fu_mul1,"res=%d*%d",cpu->stage[fu_mul1].op1,cpu->stage[fu_mul1].op2);
 	set_conditionCodes(cpu,fu_mul1);
-	exForward(cpu,fu_mul1);
 	cpu->prf[dest].valid = 1; 
 	cpu->prf[dest].value = cpu->stage[fu_mul1].result; 
 	if (cpu->stage[fu_mul1].result==0) cpu->prf[dest].z=1;
 	else cpu->prf[dest].z=0;
 	if (cpu->stage[fu_mul1].result > 0) cpu->prf[dest].p=1;
 	else cpu->prf[dest].p=0;
+	updateIQ(cpu,dest);
 }
 
 void and_execute(cpu cpu) {
 	int dest = issueToFu(cpu);
 	cpu->stage[fu_alu].result=cpu->stage[fu_alu].op1&cpu->stage[fu_alu].op2;
 	reportStage(cpu,fu_alu,"res=%d&%d",cpu->stage[fu_alu].op1,cpu->stage[fu_alu].op2);
-	exForward(cpu,fu_alu);
 	cpu->prf[dest].valid = 1; 
 	cpu->prf[dest].value = cpu->stage[fu_alu].result; 
 	if (cpu->stage[fu_alu].result==0) cpu->prf[dest].z=1;
 	else cpu->prf[dest].z=0;
 	if (cpu->stage[fu_alu].result > 0) cpu->prf[dest].p=1;
 	else cpu->prf[dest].p=0;
-
+	updateIQ(cpu,dest);
 }
 
 void or_execute(cpu cpu) {
 	int dest = issueToFu(cpu);
 	cpu->stage[fu_alu].result=cpu->stage[fu_alu].op1|cpu->stage[fu_alu].op2;
 	reportStage(cpu,fu_alu,"res=%d|%d",cpu->stage[fu_alu].op1,cpu->stage[fu_alu].op2);
-	exForward(cpu,fu_alu);
 	cpu->prf[dest].valid = 1; 
 	cpu->prf[dest].value = cpu->stage[fu_alu].result; 
 	if (cpu->stage[fu_alu].result==0) cpu->prf[dest].z=1;
 	else cpu->prf[dest].z=0;
 	if (cpu->stage[fu_alu].result > 0) cpu->prf[dest].p=1;
 	else cpu->prf[dest].p=0;
+	updateIQ(cpu,dest);
 }
 
 void xor_execute(cpu cpu) {
 	int dest = issueToFu(cpu);
 	cpu->stage[fu_alu].result=cpu->stage[fu_alu].op1^cpu->stage[fu_alu].op2;
 	reportStage(cpu,fu_alu,"res=%d^%d",cpu->stage[fu_alu].op1,cpu->stage[fu_alu].op2);
-	exForward(cpu,fu_alu);
 	cpu->prf[dest].valid = 1; 
 	cpu->prf[dest].value = cpu->stage[fu_alu].result; 
 	if (cpu->stage[fu_alu].result==0) cpu->prf[dest].z=1;
 	else cpu->prf[dest].z=0;
 	if (cpu->stage[fu_alu].result > 0) cpu->prf[dest].p=1;
 	else cpu->prf[dest].p=0;
+	updateIQ(cpu,dest);
 }
 
 void movc_execute(cpu cpu) {
 	int dest = issueToFu(cpu);
 	cpu->stage[fu_alu].result=cpu->stage[fu_alu].op1;
 	reportStage(cpu,fu_alu,"res=%d",cpu->stage[fu_alu].result);
-	exForward(cpu,fu_alu);
 	cpu->prf[dest].valid = 1; 
 	cpu->prf[dest].value = cpu->stage[fu_alu].result; 
 	if (cpu->stage[fu_alu].result==0) cpu->prf[dest].z=1;
 	else cpu->prf[dest].z=0;
 	if (cpu->stage[fu_alu].result > 0) cpu->prf[dest].p=1;
 	else cpu->prf[dest].p=0;
+	updateIQ(cpu,dest);
 }
 
 void load_execute(cpu cpu) {
@@ -271,6 +271,7 @@ void load_execute(cpu cpu) {
 	else cpu->prf[dest].z=0;
 	if (cpu->stage[fu_lsa].result > 0) cpu->prf[dest].p=1;
 	else cpu->prf[dest].p=0;
+	updateIQ(cpu,dest);
 }
 
 void store_execute(cpu cpu) {
@@ -284,6 +285,7 @@ void store_execute(cpu cpu) {
 	else cpu->prf[dest].z=0;
 	if (cpu->stage[fu_lsa].result > 0) cpu->prf[dest].p=1;
 	else cpu->prf[dest].p=0;
+	updateIQ(cpu,dest);
 }
 
 void cbranch_execute(cpu cpu) {
@@ -302,6 +304,7 @@ void cbranch_execute(cpu cpu) {
 	else cpu->prf[dest].z=0;
 	if (cpu->stage[fu_br].result > 0) cpu->prf[dest].p=1;
 	else cpu->prf[dest].p=0;
+	updateIQ(cpu,dest);
 }
 
 void fwd_execute(cpu cpu) {
@@ -314,10 +317,6 @@ void fwd_execute(cpu cpu) {
 void load_memory(cpu cpu) {
 	cpu->stage[fu_lsa].result = dfetch(cpu,cpu->stage[fu_lsa].effectiveAddr);
 	reportStage(cpu,fu_lsa,"res=MEM[%06x]",cpu->stage[fu_lsa].effectiveAddr);
-	assert(cpu->fwdBus[1].valid==0); // load should not have used the ex forwarding bus
-	cpu->fwdBus[1].tag=cpu->stage[fu_lsa].dr;
-	cpu->fwdBus[1].value=cpu->stage[fu_lsa].result;
-	cpu->fwdBus[1].valid=1;
 }
 
 void store_memory(cpu cpu) {
@@ -345,33 +344,33 @@ void halt_writeback(cpu cpu) {
 ---------------------------------------------------------*/
 void registerAllOpcodes() {
 	// Invoke registerOpcode for EACH valid opcode here
-	registerOpcode(ADD,alu_fu,dss_decode_ren1,ren2_dis,issue,add_execute,fwd_execute,fwd_execute,dest_writeback);
-	registerOpcode(ADDL,alu_fu,dsi_decode_ren1,ren2_dis,issue,add_execute,fwd_execute,fwd_execute,dest_writeback);
-	registerOpcode(SUB,alu_fu,dss_decode_ren1,ren2_dis,issue,sub_execute,fwd_execute,fwd_execute,dest_writeback);
-	registerOpcode(SUBL,alu_fu,dsi_decode_ren1,ren2_dis,issue,sub_execute,fwd_execute,fwd_execute,dest_writeback);
-	registerOpcode(MUL,mult_fu,dss_decode_ren1,ren2_dis,issue,mul_execute,fwd_execute,fwd_execute,dest_writeback);
-	registerOpcode(AND,alu_fu,dss_decode_ren1,ren2_dis,issue,and_execute,fwd_execute,fwd_execute,dest_writeback);
-	registerOpcode(OR,alu_fu,dss_decode_ren1,ren2_dis,issue,or_execute,fwd_execute,fwd_execute,dest_writeback);
-	registerOpcode(XOR,alu_fu,dss_decode_ren1,ren2_dis,issue,xor_execute,fwd_execute,fwd_execute,dest_writeback);
-	registerOpcode(MOVC,alu_fu,movc_decode_ren1,ren2_dis,issue,movc_execute,fwd_execute,fwd_execute,dest_writeback);
-	registerOpcode(LOAD,load_fu,dsi_decode_ren1,ren2_dis,issue,load_execute,load_memory,fwd_execute,dest_writeback);
-	registerOpcode(STORE,store_fu,ssi_decode_ren1,ren2_dis,issue,store_execute,store_memory,fwd_execute,fwd_execute);
-	registerOpcode(CMP,alu_fu,ssi_decode_ren1,ren2_dis,issue,cmp_execute,fwd_execute,fwd_execute,NULL);
-	registerOpcode(JUMP,br_fu,cbranch_decode_ren1,ren2_dis,issue,cbranch_execute,fwd_execute,fwd_execute,NULL);
-	registerOpcode(BZ,br_fu,cbranch_decode_ren1,ren2_dis,issue,cbranch_execute,fwd_execute,fwd_execute,NULL);
-	registerOpcode(BNZ,br_fu,cbranch_decode_ren1,ren2_dis,issue,cbranch_execute,fwd_execute,fwd_execute,NULL);
-	registerOpcode(BP,br_fu,cbranch_decode_ren1,ren2_dis,issue,cbranch_execute,fwd_execute,fwd_execute,NULL);
-	registerOpcode(BNP,br_fu,cbranch_decode_ren1,ren2_dis,issue,cbranch_execute,fwd_execute,fwd_execute,NULL);
-	registerOpcode(HALT,alu_fu,NULL,NULL,issue,fwd_execute,fwd_execute,fwd_execute,halt_writeback);
+	registerOpcode(ADD,fu_alu,dss_decode_ren1,ren2_dis,issueInIq,add_execute,fwd_execute,fwd_execute,dest_writeback);
+	registerOpcode(ADDL,fu_alu,dsi_decode_ren1,ren2_dis,issueInIq,add_execute,fwd_execute,fwd_execute,dest_writeback);
+	registerOpcode(SUB,fu_alu,dss_decode_ren1,ren2_dis,issueInIq,sub_execute,fwd_execute,fwd_execute,dest_writeback);
+	registerOpcode(SUBL,fu_alu,dsi_decode_ren1,ren2_dis,issueInIq,sub_execute,fwd_execute,fwd_execute,dest_writeback);
+	registerOpcode(MUL,fu_mul1,dss_decode_ren1,ren2_dis,issueInIq,mul_execute,fwd_execute,fwd_execute,dest_writeback);
+	registerOpcode(AND,fu_alu,dss_decode_ren1,ren2_dis,issueInIq,and_execute,fwd_execute,fwd_execute,dest_writeback);
+	registerOpcode(OR,fu_alu,dss_decode_ren1,ren2_dis,issueInIq,or_execute,fwd_execute,fwd_execute,dest_writeback);
+	registerOpcode(XOR,fu_alu,dss_decode_ren1,ren2_dis,issueInIq,xor_execute,fwd_execute,fwd_execute,dest_writeback);
+	registerOpcode(MOVC,fu_alu,movc_decode_ren1,ren2_dis,issueInIq,movc_execute,fwd_execute,fwd_execute,dest_writeback);
+	registerOpcode(LOAD,fu_lsa,dsi_decode_ren1,ren2_dis,issueInIq,load_execute,load_memory,fwd_execute,dest_writeback);
+	registerOpcode(STORE,fu_lsa,ssi_decode_ren1,ren2_dis,issueInIq,store_execute,store_memory,fwd_execute,fwd_execute);
+	registerOpcode(CMP,fu_alu,ssi_decode_ren1,ren2_dis,issueInIq,cmp_execute,fwd_execute,fwd_execute,NULL);
+	registerOpcode(JUMP,fu_br,cbranch_decode_ren1,ren2_dis,issueInIq,cbranch_execute,fwd_execute,fwd_execute,NULL);
+	registerOpcode(BZ,fu_br,cbranch_decode_ren1,ren2_dis,issueInIq,cbranch_execute,fwd_execute,fwd_execute,NULL);
+	registerOpcode(BNZ,fu_br,cbranch_decode_ren1,ren2_dis,issueInIq,cbranch_execute,fwd_execute,fwd_execute,NULL);
+	registerOpcode(BP,fu_br,cbranch_decode_ren1,ren2_dis,issueInIq,cbranch_execute,fwd_execute,fwd_execute,NULL);
+	registerOpcode(BNP,fu_br,cbranch_decode_ren1,ren2_dis,issueInIq,cbranch_execute,fwd_execute,fwd_execute,NULL);
+	registerOpcode(HALT,fu_alu,NULL,NULL,issueInIq,fwd_execute,fwd_execute,fwd_execute,halt_writeback);
 }
 
-void registerOpcode(int opNum,enum fu_enum fu,
-	opStageFn decode_ren1,opStageFn ren2_dis,opStageFn issue,opStageFn executeFn1,
+void registerOpcode(int opNum,enum stage_enum fu,
+	opStageFn decode_ren1,opStageFn ren2_dis,opStageFn issueInIq,opStageFn executeFn1,
 	opStageFn executeFn2,opStageFn executeFn3,
 	opStageFn writebackFn) {
 	opFns[decode_rename1][opNum]=decode_ren1;
 	opFns[rename2_dispatch][opNum]=ren2_dis;
-	opFns[issue_instruction][opNum]=issue;
+	opFns[issue_instruction][opNum]=issueInIq;
 	opFns[fu][opNum]=executeFn1;
 	opFns[fu+1][opNum]=executeFn2;
 	opFns[fu+2][opNum]=executeFn3;
@@ -435,18 +434,6 @@ char * disassemble(int instruction,char *buf) {
 
 
 int fetchRegister(cpu cpu,int reg,int *value) {
-
-	// Check forwarding busses in program order
-	for (int fb=0;fb<3;fb++) {
-		if (cpu->fwdBus[fb].valid && reg==cpu->fwdBus[fb].tag) {
-			(*value)=cpu->fwdBus[fb].value;
-			return 1;
-		}
-	}
-	if (cpu->regValid[reg]) {
-		(*value)=cpu->reg[reg];
-		return 1;
-	}
 	int found_prf;
 	if(cpu->rat[reg].valid){
 		found_prf = cpu->rat[reg].prf;
@@ -496,6 +483,7 @@ void check_dest(cpu cpu) {
 		cpu->rat[reg].valid = 1;
 		cpu->rat[reg].prf = dequeue();
 	}
+	cpu->prf[cpu->rat[reg].prf].valid = 0;
 }
 
 void set_conditionCodes(cpu cpu,enum stage_enum stage) {
@@ -507,11 +495,6 @@ void set_conditionCodes(cpu cpu,enum stage_enum stage) {
 	else cpu->cc.p=0;
 }
 
-void exForward(cpu cpu,enum stage_enum stage) {
-	cpu->fwdBus[0].tag=cpu->stage[stage].dr;
-	cpu->fwdBus[0].value=cpu->stage[stage].result;
-	cpu->fwdBus[0].valid=1;
-}
 
 
 void rob_insert(cpu cpu){
@@ -519,3 +502,16 @@ void rob_insert(cpu cpu){
 	cpu->stage[decode_rename1].dr,cpu->rat[cpu->stage[decode_rename1].dr].prf);
 }
 
+void updateIQ(cpu cpu,int dest){
+	int array_length = sizeof(cpu->iq)/sizeof(cpu->iq[0]);
+	for(int i=0;i<array_length;i++) {
+		if(cpu->iq[i].src1_tag == dest){
+			cpu->iq[i].src1_valid = 1;
+			cpu->iq[i].src1_value = cpu->prf[dest].value;
+		}
+		if(cpu->iq[i].src2_tag == dest){
+			cpu->iq[i].src2_valid = 1;
+			cpu->iq[i].src2_value = cpu->prf[dest].value;
+		}
+		}
+}

@@ -70,10 +70,9 @@ void initCPU(cpu cpu) {
 		cpu->stage[i].opcode=0;
 		cpu->stage[i].pc=-1;
 		cpu->stage[i].branch_taken=0;
-		cpu->stage[i].fu=no_fu;
+		//cpu->stage[i].fu=no_fu;
 		for(int op=0;op<NUMOPS;op++) opFns[i][op]=NULL;
 	}
-	for (int c=2; c>=0; c--) cpu->fwdBus[c].valid=0;
 	registerAllOpcodes();
 	for(int i=0;i<32;i++){
 		enqueue(i);
@@ -81,27 +80,27 @@ void initCPU(cpu cpu) {
 	for(int i=0;i<16;i++){
 		cpu->rat[i].arf = i;
 		cpu->rat[i].valid = 0;
-		cpu->rat[i].prf = 0;
+		cpu->rat[i].prf = -1;
 	}
 	for(int i=0;i<32;i++){
 		cpu->prf[i].prf = i;
 		cpu->prf[i].valid = 0;
-		cpu->prf[i].value = 0;
-		cpu->prf[i].z = 0;
-		cpu->prf[i].p = 0;
+		cpu->prf[i].value = -1;
+		cpu->prf[i].z = -1;
+		cpu->prf[i].p = -1;
 	}
 	for(int i=0;i<32;i++){
-		cpu->iq[i].free=0;
+		cpu->iq[i].free=-1;
 		cpu->iq[i].opcode=0;
-		cpu->iq[i].fu=0;
+		cpu->iq[i].fu=-1;
 		cpu->iq[i].src1_valid=0;
-		cpu->iq[i].src1_tag=0;
-		cpu->iq[i].src1_value=0;
+		cpu->iq[i].src1_tag=-1;
+		cpu->iq[i].src1_value=-1;
 		cpu->iq[i].src2_valid=0;
-		cpu->iq[i].src2_tag=0;
-		cpu->iq[i].src2_value=0;
-		cpu->iq[i].lsq_prf=0;
-		cpu->iq[i].dest=0;
+		cpu->iq[i].src2_tag=-1;
+		cpu->iq[i].src2_value=-1;
+		cpu->iq[i].lsq_prf=-1;
+		cpu->iq[i].dest=-1;
 	}
 }
 
@@ -166,12 +165,7 @@ void printState(cpu cpu) {
 		printf("\n");
 	}
 
-	printf("Forwarding buses:\n");
-	for(int c=0;c<3;c++) {
-		if (cpu->fwdBus[c].valid) {
-			printf("   bus %d: R%d, value=%d\n",c,cpu->fwdBus[c].tag,cpu->fwdBus[c].value);
-		}
-	}
+
 	printf("\n");
 
 	printf("  Reorder Buffer: ");
@@ -264,6 +258,11 @@ void printState(cpu cpu) {
 	printf("  Load/Store Queue: ");
 	displayLSQ();
 	printf("\n");
+
+	printf("  Issue Queue: ");
+	printf("\n");
+	displayIssueQueue();
+	printf("\n");
 	
 
 	if (cpu->halt_fetch) {
@@ -287,8 +286,8 @@ void cycleCPU(cpu cpu) {
 		}
 	}*/
 
-    cpu->stage[retire]=cpu->stage[alu_fu];
-	cpu->stage[alu_fu]=cpu->stage[issue_instruction];
+    cpu->stage[retire]=cpu->stage[fu_alu];
+	cpu->stage[fu_alu]=cpu->stage[issue_instruction];
 	//cpu->stage[mult_fu]=cpu->stage[issue_instruction];
 	//cpu->stage[store_fu]=cpu->stage[issue_instruction];
 	//cpu->stage[load_fu]=cpu->stage[issue_instruction];
@@ -329,7 +328,7 @@ void cycleCPU(cpu cpu) {
 	if (!cpu->stop) cycle_decode(cpu);
 	if (!cpu->stop) cycle_stage(cpu,rename2_dispatch);
 	if (!cpu->stop) cycle_stage(cpu,issue_instruction);
-	if (!cpu->stop) cycle_stage(cpu,alu_fu);
+	if (!cpu->stop) cycle_stage(cpu,fu_alu);
 	//if (!cpu->stop) cycle_stage(cpu,mult_fu);
 	//if (!cpu->stop) cycle_stage(cpu,load_fu);
 	//if (!cpu->stop) cycle_stage(cpu,store_fu);
@@ -441,7 +440,7 @@ void cycle_decode(cpu cpu) {
 	switch(fmt) {
 		case fmt_nop:
 			reportStage(cpu,decode_rename1,"decode(nop)");
-			cpu->stage[decode_rename1].fu=alu_fu;
+			cpu->stage[decode_rename1].fu=fu_alu;
 			cpu->stage[decode_rename1].status=stage_actionComplete;
 			break; // No decoding required
 		case fmt_dss:
@@ -450,8 +449,8 @@ void cycle_decode(cpu cpu) {
 			cpu->stage[decode_rename1].op1Valid=0;
 			cpu->stage[decode_rename1].sr2=(inst&0x0000f000)>>12;
 			cpu->stage[decode_rename1].op2Valid=0;
-			cpu->stage[decode_rename1].fu=alu_fu;
-			if (cpu->stage[decode_rename1].opcode==MUL) cpu->stage[decode_rename1].fu=mult_fu;
+			cpu->stage[decode_rename1].fu=fu_alu;
+			if (cpu->stage[decode_rename1].opcode==MUL) cpu->stage[decode_rename1].fu=fu_mul1;
 			reportStage(cpu,decode_rename1,"decode(dss)");
 			break;
 		case fmt_dsi:
@@ -461,8 +460,8 @@ void cycle_decode(cpu cpu) {
 			cpu->stage[decode_rename1].imm=((inst&0x0000ffff)<<16)>>16;
 			cpu->stage[decode_rename1].op2=cpu->stage[decode_rename1].imm;
 			cpu->stage[decode_rename1].op2Valid=1;
-			if (cpu->stage[decode_rename1].opcode==LOAD) cpu->stage[decode_rename1].fu=load_fu;
-			else cpu->stage[decode_rename1].fu=alu_fu;
+			if (cpu->stage[decode_rename1].opcode==LOAD) cpu->stage[decode_rename1].fu=fu_lsa;
+			else cpu->stage[decode_rename1].fu=fu_alu;
 			reportStage(cpu,decode_rename1,"decode(dsi) op2=%d",cpu->stage[decode_rename1].op2);
 			break;
 		case fmt_di:
@@ -471,7 +470,7 @@ void cycle_decode(cpu cpu) {
 			cpu->stage[decode_rename1].op1=cpu->stage[decode_rename1].imm;
 			cpu->stage[decode_rename1].op1Valid=1;
 			cpu->stage[decode_rename1].op2Valid=1;
-			cpu->stage[decode_rename1].fu=alu_fu;
+			cpu->stage[decode_rename1].fu=fu_alu;
 			reportStage(cpu,decode_rename1,"decode(di) op1=%d",cpu->stage[decode_rename1].op1);
 			break;
 		case fmt_ssi:
@@ -480,7 +479,7 @@ void cycle_decode(cpu cpu) {
 			cpu->stage[decode_rename1].sr2=(inst&0x000f0000)>>16;
 			cpu->stage[decode_rename1].op2Valid=0;
 			cpu->stage[decode_rename1].imm=((inst&0x0000ffff)<<16)>>16;
-			cpu->stage[decode_rename1].fu=store_fu;
+			cpu->stage[decode_rename1].fu=fu_lsa;
 			reportStage(cpu,decode_rename1,"decode(ssi) imm=%d",cpu->stage[decode_rename1].imm);
 			break;
 		case fmt_ss:
@@ -489,14 +488,14 @@ void cycle_decode(cpu cpu) {
 			cpu->stage[decode_rename1].sr2=(inst&0x0000f000)>>12;
 			cpu->stage[decode_rename1].op2Valid=0;
 			reportStage(cpu,decode_rename1,"decode(ss)");
-			cpu->stage[decode_rename1].fu=alu_fu;
+			cpu->stage[decode_rename1].fu=fu_alu;
 			break;
 		case fmt_off:
 			cpu->stage[decode_rename1].offset=((inst&0x0000ffff)<<16)>>16;
 			cpu->stage[decode_rename1].op1Valid=1;
 			cpu->stage[decode_rename1].op2Valid=1;
 			reportStage(cpu,decode_rename1,"decode(off)");
-			cpu->stage[decode_rename1].fu=br_fu;
+			cpu->stage[decode_rename1].fu=fu_br;
 			break;
 		default :
 			cpu->stop=1;
