@@ -77,6 +77,12 @@ void movc_decode_ren1(cpu cpu) {
 	cpu->stage[decode_rename1].status=stage_actionComplete;
 }
 
+void halt_decode_ren1(cpu cpu) {
+	//check_dest(cpu);
+	rob_insert(cpu);
+	cpu->stage[decode_rename1].status=stage_actionComplete;
+}
+
 void cbranch_decode_ren1(cpu cpu) {
 	rob_insert(cpu);
 	cpu->stage[decode_rename1].branch_taken=0;
@@ -272,12 +278,13 @@ void load_execute(cpu cpu) {
 	if (cpu->stage[fu_lsa].result > 0) cpu->prf[dest].p=1;
 	else cpu->prf[dest].p=0;
 	updateIQ(cpu,dest);
+	updateLSQ(cpu->prf[dest].value,dest,cpu->stage[fu_lsa].effectiveAddr);
 }
 
 void store_execute(cpu cpu) {
 	int dest = issueToFu(cpu);
 	cpu->stage[fu_lsa].effectiveAddr =
-		cpu->stage[fu_lsa].op2 + cpu->stage[fu_lsa].imm;
+		cpu->stage[fu_lsa].op1 + cpu->stage[fu_lsa].imm;
 	reportStage(cpu,fu_lsa,"effAddr=%08x",cpu->stage[fu_lsa].effectiveAddr);
 	cpu->prf[dest].valid = 1; 
 	cpu->prf[dest].value = cpu->stage[fu_lsa].result; 
@@ -286,6 +293,8 @@ void store_execute(cpu cpu) {
 	if (cpu->stage[fu_lsa].result > 0) cpu->prf[dest].p=1;
 	else cpu->prf[dest].p=0;
 	updateIQ(cpu,dest);
+	updateLSQ(cpu->prf[dest].value,dest,cpu->stage[fu_lsa].effectiveAddr);
+
 }
 
 void cbranch_execute(cpu cpu) {
@@ -361,7 +370,7 @@ void registerAllOpcodes() {
 	registerOpcode(BNZ,fu_br,cbranch_decode_ren1,ren2_dis,issueInIq,cbranch_execute,fwd_execute,fwd_execute,NULL);
 	registerOpcode(BP,fu_br,cbranch_decode_ren1,ren2_dis,issueInIq,cbranch_execute,fwd_execute,fwd_execute,NULL);
 	registerOpcode(BNP,fu_br,cbranch_decode_ren1,ren2_dis,issueInIq,cbranch_execute,fwd_execute,fwd_execute,NULL);
-	registerOpcode(HALT,fu_alu,NULL,NULL,issueInIq,fwd_execute,fwd_execute,fwd_execute,halt_writeback);
+	registerOpcode(HALT,fu_alu,halt_decode_ren1,NULL,issueInIq,fwd_execute,fwd_execute,fwd_execute,dest_writeback);
 }
 
 void registerOpcode(int opNum,enum stage_enum fu,
@@ -498,6 +507,9 @@ void set_conditionCodes(cpu cpu,enum stage_enum stage) {
 
 
 void rob_insert(cpu cpu){
+	if(cpu->stage[decode_rename1].opcode==HALT){
+		enQueueROB(1,cpu->stage[decode_rename1].opcode , cpu->stage[decode_rename1].pc ,-1,-1);
+	}
 	enQueueROB(1,cpu->stage[decode_rename1].opcode,cpu->stage[decode_rename1].pc,
 	cpu->stage[decode_rename1].dr,cpu->rat[cpu->stage[decode_rename1].dr].prf);
 }
@@ -515,3 +527,6 @@ void updateIQ(cpu cpu,int dest){
 		}
 		}
 }
+
+
+
