@@ -6,7 +6,7 @@ typedef struct LSQ {
   int index;
   int free; 
   enum opcode_enum opcode;
-  enum fu_enum fu;
+  enum stage_enum fu;
   int src1_valid;
   int src1_tag;
   int src1_value;
@@ -33,7 +33,7 @@ int isEmptyLSQ() {
 }
 
 // Adding an element
-void enQueueLSQ(int free,enum opcode_enum opcode,enum fu_enum fu, 
+void enQueueLSQ(int free,enum opcode_enum opcode,enum stage_enum fu, 
 int src1_valid,
   int src1_tag,
   int src1_value,

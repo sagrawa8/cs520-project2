@@ -52,7 +52,7 @@ void enQueueROB(int free, enum opcode_enum opcode, int pc, int dest_arf , int de
   rob_queue[rear_rob].pc = pc;
   rob_queue[rear_rob].dest_arf = dest_arf;
   rob_queue[rear_rob].dest_prf = dest_prf;
-    printf("\n Inserted -> %d", rob_queue[rear_rob].opcode);
+  //printf("\n Inserted -> %d", rob_queue[rear_rob].opcode);
   }
 }
 
