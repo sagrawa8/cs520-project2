@@ -77,6 +77,12 @@ void movc_decode_ren1(cpu cpu) {
 	cpu->stage[decode_rename1].status=stage_actionComplete;
 }
 
+void halt_decode_ren1(cpu cpu) {
+	//check_dest(cpu);
+	rob_insert(cpu);
+	cpu->stage[decode_rename1].status=stage_actionComplete;
+}
+
 void cbranch_decode_ren1(cpu cpu) {
 	rob_insert(cpu);
 	cpu->stage[decode_rename1].branch_taken=0;
@@ -361,7 +367,7 @@ void registerAllOpcodes() {
 	registerOpcode(BNZ,fu_br,cbranch_decode_ren1,ren2_dis,issueInIq,cbranch_execute,fwd_execute,fwd_execute,NULL);
 	registerOpcode(BP,fu_br,cbranch_decode_ren1,ren2_dis,issueInIq,cbranch_execute,fwd_execute,fwd_execute,NULL);
 	registerOpcode(BNP,fu_br,cbranch_decode_ren1,ren2_dis,issueInIq,cbranch_execute,fwd_execute,fwd_execute,NULL);
-	registerOpcode(HALT,fu_alu,NULL,NULL,issueInIq,fwd_execute,fwd_execute,fwd_execute,halt_writeback);
+	registerOpcode(HALT,fu_alu,halt_decode_ren1,NULL,issueInIq,fwd_execute,fwd_execute,fwd_execute,dest_writeback);
 }
 
 void registerOpcode(int opNum,enum stage_enum fu,
@@ -498,6 +504,9 @@ void set_conditionCodes(cpu cpu,enum stage_enum stage) {
 
 
 void rob_insert(cpu cpu){
+	if(cpu->stage[decode_rename1].opcode==HALT){
+		enQueueROB(1,cpu->stage[decode_rename1].opcode , cpu->stage[decode_rename1].pc ,-1,-1);
+	}
 	enQueueROB(1,cpu->stage[decode_rename1].opcode,cpu->stage[decode_rename1].pc,
 	cpu->stage[decode_rename1].dr,cpu->rat[cpu->stage[decode_rename1].dr].prf);
 }

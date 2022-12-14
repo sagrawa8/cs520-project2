@@ -279,20 +279,21 @@ void cycleCPU(cpu cpu) {
 		printf("CPU is stopped for %s. No cycles allowed.\n",cpu->abend);
 		return;
 	}
-	/*for(int i=0;i<32;i++) {
-		if(cpu->prf[i].prf == rob_queue[front_rob].dest_prf && cpu->prf[i].valid == 1) {
-			cpu->stage[retire].dr = cpu->prf[i].prf;
-			cpu->stage[retire].result = cpu->prf[i].value;
-			cpu->stage[retire].status=stage_ready;
-		}
-	}*/
 
     cpu->stage[retire]=cpu->stage[fu_alu];
+
+	
+	cpu->stage[fu_mul3]=cpu->stage[fu_mul2];
+	cpu->stage[fu_mul2]=cpu->stage[fu_mul1];
+	if(cpu->stage[issue_instruction].fu == fu_mul1)
+	cpu->stage[fu_mul1]=cpu->stage[issue_instruction];
+	if(cpu->stage[issue_instruction].fu == fu_lsa)
+	cpu->stage[fu_lsa]=cpu->stage[issue_instruction];
+	if(cpu->stage[issue_instruction].fu == fu_br)
+	cpu->stage[fu_br]=cpu->stage[issue_instruction];
+	if(cpu->stage[issue_instruction].fu == fu_alu)
 	cpu->stage[fu_alu]=cpu->stage[issue_instruction];
-	//cpu->stage[mult_fu]=cpu->stage[issue_instruction];
-	//cpu->stage[store_fu]=cpu->stage[issue_instruction];
-	//cpu->stage[load_fu]=cpu->stage[issue_instruction];
-	//cpu->stage[br_fu]=cpu->stage[issue_instruction];
+
 	cpu->stage[issue_instruction]=cpu->stage[rename2_dispatch];
 	cpu->stage[rename2_dispatch]=cpu->stage[decode_rename1];
 
@@ -330,10 +331,15 @@ void cycleCPU(cpu cpu) {
 	if (!cpu->stop) cycle_stage(cpu,rename2_dispatch);
 	if (!cpu->stop) cycle_stage(cpu,issue_instruction);
 	if (!cpu->stop) cycle_stage(cpu,fu_alu);
-	//if (!cpu->stop) cycle_stage(cpu,mult_fu);
-	//if (!cpu->stop) cycle_stage(cpu,load_fu);
-	//if (!cpu->stop) cycle_stage(cpu,store_fu);
-	//if (!cpu->stop) cycle_stage(cpu,br_fu);
+	//if(cpu->stage[issue_instruction].fu==fu_mul1)
+	if (!cpu->stop) cycle_stage(cpu,fu_mul1);
+	if (!cpu->stop) cycle_stage(cpu,fu_mul2);
+	if (!cpu->stop) cycle_stage(cpu,fu_mul3);
+	//if(cpu->stage[issue_instruction].fu==fu_lsa)
+		if (!cpu->stop) cycle_stage(cpu,fu_lsa);
+	//if(cpu->stage[issue_instruction].fu==fu_br)
+		if (!cpu->stop) cycle_stage(cpu,fu_br);
+	
 	if (!cpu->stop) cycle_stage(cpu,retire);
 
 	if (!cpu->stop) cycle_stage(cpu,decode_rename1);
