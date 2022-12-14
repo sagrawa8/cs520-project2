@@ -114,6 +114,7 @@ void displayLSQ() {
       printf("|%10d ", lsq_queue[i].src2_value);
       printf("|%10d ", lsq_queue[i].lsq_prf);
       printf("|%10d ", lsq_queue[i].dest);
+      printf("|\n");
     }
   }
 }
