@@ -84,15 +84,7 @@ int issueToFu(cpu cpu){
     if(issue_queue[front_issue].fu == fu_lsa && cpu->stage[fu_lsa].status != stage_stalled) {
 			cpu->stage[fu_lsa].opcode = issue_queue[front_issue].opcode;
 			cpu->stage[fu_lsa].op1 = issue_queue[front_issue].value1;
-			cpu->stage[fu_lsa].op2 = issue_queue[front_issue].value2;
-			int dest =  issue_queue[front_issue].dest;
-      deQueueIssue();
-      return dest;
-		}
-    if(issue_queue[front_issue].fu == fu_lsa && cpu->stage[fu_lsa].status != stage_stalled) {
-			cpu->stage[fu_lsa].opcode = issue_queue[front_issue].opcode;
-			cpu->stage[fu_lsa].op1 = issue_queue[front_issue].value1;
-			cpu->stage[fu_lsa].op2 = issue_queue[front_issue].value2;
+			cpu->stage[fu_lsa].imm = issue_queue[front_issue].value2;
 			int dest =  issue_queue[front_issue].dest;
       deQueueIssue();
       return dest;
