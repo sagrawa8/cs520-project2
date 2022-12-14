@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -Wall -std=c18 -ggdb
-PGM = basic
+PGM = example
 	
 %.o : %.s apexAsm 
 	./apexAsm $<	
