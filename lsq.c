@@ -5,15 +5,12 @@
 typedef struct LSQ {
   int index;
   int free; 
-  enum opcode_enum opcode;
-  enum stage_enum fu;
-  int src1_valid;
-  int src1_tag;
-  int src1_value;
-  int src2_valid;
-  int src2_tag;
-  int src2_value;
-  int lsq_prf;
+  int lsa;
+  int valid;
+  int tag;
+  int value;
+  int valid_address;
+  int value_address;
   int dest;
 }lsq;
 
@@ -33,14 +30,14 @@ int isEmptyLSQ() {
 }
 
 // Adding an element
-void enQueueLSQ(int free,enum opcode_enum opcode,enum stage_enum fu, 
-int src1_valid,
-  int src1_tag,
-  int src1_value,
-  int src2_valid,
-  int src2_tag,
-  int src2_value,
-  int lsq_prf,
+void enQueueLSQ( int index,
+  int free,
+  int lsa,
+  int valid,
+  int tag,
+  int value,
+  int valid_address,
+  int value_address,
   int dest)  {
   if (isFullLSQ())
     printf("\n Queue is full!! \n");
@@ -49,15 +46,12 @@ int src1_valid,
 
   lsq_queue[rear_lsq].index = rear_lsq;
   lsq_queue[rear_lsq].free = free;
-  lsq_queue[rear_lsq].opcode = opcode;
-  lsq_queue[rear_lsq].fu = fu;
-  lsq_queue[rear_lsq].src1_valid = src1_valid;
-  lsq_queue[rear_lsq].src1_tag=src1_tag ;
-  lsq_queue[rear_lsq].src1_value= src1_value;
-  lsq_queue[rear_lsq].src2_valid = src2_valid;
-  lsq_queue[rear_lsq].src2_tag=src2_tag;
-  lsq_queue[rear_lsq].src2_value=src2_value;
-  lsq_queue[rear_lsq].lsq_prf=lsq_prf;
+  lsq_queue[rear_lsq].lsa = lsa;
+  lsq_queue[rear_lsq].valid = valid;
+  lsq_queue[rear_lsq].tag = tag;
+  lsq_queue[rear_lsq].value=value ;
+  lsq_queue[rear_lsq].valid_address= valid_address;
+  lsq_queue[rear_lsq].value_address = value_address;
   lsq_queue[rear_lsq].dest=dest;
   rear_lsq = (rear_lsq + 1) % LSQ_SIZE;
   }
@@ -81,6 +75,18 @@ void deQueueLSQ() {
   }
 }
 
+void updateLSQ(int value,int dest,int address){
+	int array_length = sizeof(lsq_queue)/sizeof(lsq_queue[0]);
+	for(int i=0;i<array_length;i++) {
+		if(lsq_queue[i].tag == dest){
+      lsq_queue[i].value = value;
+      lsq_queue[i].value_address = address;
+      lsq_queue[i].valid_address = 1;
+
+		}
+		}
+}
+
 // Display the queue
 void displayLSQ() {
   int i;
@@ -90,29 +96,23 @@ void displayLSQ() {
   else {
     printf("|%10s", "index");
     printf("|%10s", "free");
-    printf("|%10s", "opcode");
-    printf("|%10s","fu");
-    printf("|%10s", "src1_valid");
-    printf("|%10s", "src1_tag");
-    printf("|%10s", "src1_value");
-    printf("|%10s", "src2_valid");
-    printf("|%10s", "src2_tag");
-    printf("|%10s", "src2_value");
-    printf("|%10s", "lsq_prf");
+    printf("|%10s", "lsa");
+    printf("|%10s","valid");
+    printf("|%10s", "tag");
+    printf("|%10s", "value");
+    printf("|%10s", "valid_add");
+    printf("|%10s", "value_add");
     printf("|%10s", "dest");
     printf("|\n");
     for (i = front_lsq; i != rear_lsq; i = (i + 1) % LSQ_SIZE) {
-      printf("|%10d", lsq_queue[i].index);
+      printf("|L%9d", lsq_queue[i].index);
       printf("|%10d", lsq_queue[i].free);
-      printf("|%10d", lsq_queue[i].opcode);
-      printf("|%10d", lsq_queue[i].fu);
-      printf("|%10d", lsq_queue[i].src1_valid);
-      printf("|%10d", lsq_queue[i].src1_tag);
-      printf("|%10d", lsq_queue[i].src1_value);
-      printf("|%10d", lsq_queue[i].src2_valid);
-      printf("|%10d", lsq_queue[i].src2_tag);
-      printf("|%10d", lsq_queue[i].src2_value);
-      printf("|%10d", lsq_queue[i].lsq_prf);
+      printf("|%10d", lsq_queue[i].lsa);
+      printf("|%10d", lsq_queue[i].valid);
+      printf("|%10d", lsq_queue[i].tag);
+      printf("|%10d", lsq_queue[i].value);
+      printf("|%10d", lsq_queue[i].valid_address);
+      printf("|%10d", lsq_queue[i].value_address);
       printf("|%10d", lsq_queue[i].dest);
       printf("|\n");
     }

@@ -278,12 +278,13 @@ void load_execute(cpu cpu) {
 	if (cpu->stage[fu_lsa].result > 0) cpu->prf[dest].p=1;
 	else cpu->prf[dest].p=0;
 	updateIQ(cpu,dest);
+	updateLSQ(cpu->prf[dest].value,dest,cpu->stage[fu_lsa].effectiveAddr);
 }
 
 void store_execute(cpu cpu) {
 	int dest = issueToFu(cpu);
 	cpu->stage[fu_lsa].effectiveAddr =
-		cpu->stage[fu_lsa].op2 + cpu->stage[fu_lsa].imm;
+		cpu->stage[fu_lsa].op1 + cpu->stage[fu_lsa].imm;
 	reportStage(cpu,fu_lsa,"effAddr=%08x",cpu->stage[fu_lsa].effectiveAddr);
 	cpu->prf[dest].valid = 1; 
 	cpu->prf[dest].value = cpu->stage[fu_lsa].result; 
@@ -292,6 +293,8 @@ void store_execute(cpu cpu) {
 	if (cpu->stage[fu_lsa].result > 0) cpu->prf[dest].p=1;
 	else cpu->prf[dest].p=0;
 	updateIQ(cpu,dest);
+	updateLSQ(cpu->prf[dest].value,dest,cpu->stage[fu_lsa].effectiveAddr);
+
 }
 
 void cbranch_execute(cpu cpu) {
@@ -524,3 +527,6 @@ void updateIQ(cpu cpu,int dest){
 		}
 		}
 }
+
+
+
