@@ -47,7 +47,6 @@ struct apexStage_struct {
 	int op2Valid;
 	int op2;
 	int result;
-	int dest_prf;
 	int effectiveAddr;
 	char report[128];
 	enum stageStatus_enum status;
@@ -82,13 +81,13 @@ struct iq {
 };
 
 
-struct rat {
+struct rat_table {
 	int arf;
 	int valid;
   	int prf;
 };
 
-struct prf {
+struct prf_table {
 	int prf;
 	int valid;
   	int value;
@@ -114,8 +113,8 @@ struct apexCPU_struct {
 	char abend[64];
 	struct fwdBus_struct fwdBus[3];
 	struct iq iq[32];
-	struct rat rat[16];
-	struct prf prf[32];
+	struct rat_table rat[16];
+	struct prf_table prf[32];
 	int cc_set;
 	int pc_set;
 };

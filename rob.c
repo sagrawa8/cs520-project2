@@ -29,12 +29,14 @@ int isEmptyROB() {
 
 
 void retire_ins(cpu cpu){
+  printf("Retiring call");
   if(cpu->prf[rob_queue[front_rob].dest_prf].valid){
-    int reg=cpu->stage[retire].dr;
-	  cpu->reg[reg]=cpu->prf[rob_queue[front_rob].dest_prf].value;
+    int reg =  rob_queue[front_rob].dest_arf;
+    printf("");
+	  cpu->reg[reg] = cpu->prf[rob_queue[front_rob].dest_prf].value;
     rob_queue[front_rob].free=0;
 	  deQueueROB();    
-	  reportStage(cpu,retire,"R%02d<-%d",reg,cpu->stage[retire].result);
+	  reportStage(cpu,retire,"R%02d<-%d",reg,cpu->reg[reg]);
   }
 }
 
@@ -76,18 +78,28 @@ void deQueueROB() {
 // Display the queue
 void displayROB() {
   int i;
-  if (isEmptyROB())
-    printf(" \n Empty Queue\n");
+  if (isEmptyROB()){
+    //printf(" \n Empty Queue\n");
+  }
   else {
-    printf("\n front_rob -> %d ", front_rob);
-    printf("\n Items -> ");
+    //printf("\n front_rob -> %d ", front_rob);
+    //printf("\n Items -> ");
+    printf("|\n");
+    printf("|%8s", "free");
+    printf("|%8s", "opcode");
+    printf("|%8s", "pc");
+    printf("|%8s","dest_arf");
+    printf("|%8s", "dest_prf");
+    printf("|%8s", "dest_prf");
+    printf("|\n");
     for (i = front_rob; i != rear_rob; i = (i + 1) % ROB_SIZE) {
-      printf("%d ", rob_queue[i].free);
-      printf("%d ", rob_queue[i].opcode);
-      printf("%d ", rob_queue[i].pc);
-      printf("%d ", rob_queue[i].dest_arf);
-      printf("%d ", rob_queue[i].dest_prf);
-      printf("%d ", rob_queue[i].lsq_index);
+      printf("|%8d", rob_queue[i].free);
+      printf("|%8d", rob_queue[i].opcode);
+      printf("|%8x", rob_queue[i].pc);
+      printf("|%8d", rob_queue[i].dest_arf);
+      printf("|%8d", rob_queue[i].dest_prf);
+      printf("|%8d", rob_queue[i].lsq_index);
+      printf("|\n");
     }
   }
 }

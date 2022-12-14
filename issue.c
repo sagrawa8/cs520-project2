@@ -60,6 +60,53 @@ void deQueueIssue() {
       front_issue = (front_issue + 1) % ISSUE_SIZE;
     }
   }
+
+}
+
+
+int issueToFu(cpu cpu){
+  for(int i=0; i<rear_issue; i++){
+  if(issue_queue[front_issue].fu == alu_fu && cpu->stage[alu_fu].status != stage_stalled) {
+			cpu->stage[alu_fu].opcode = issue_queue[front_issue].opcode;
+			cpu->stage[alu_fu].op1 = issue_queue[front_issue].value1;
+			cpu->stage[alu_fu].op2 = issue_queue[front_issue].value2;
+			int dest =  issue_queue[front_issue].dest;
+      deQueueIssue();
+      return dest;
+		}
+    if(issue_queue[front_issue].fu == mult_fu && cpu->stage[mult_fu].status != stage_stalled) {
+			cpu->stage[mult_fu].opcode = issue_queue[front_issue].opcode;
+			cpu->stage[mult_fu].op1 = issue_queue[front_issue].value1;
+			cpu->stage[mult_fu].op2 = issue_queue[front_issue].value2;
+			int dest =  issue_queue[front_issue].dest;
+      deQueueIssue();
+      return dest;
+		}
+    if(issue_queue[front_issue].fu == load_fu && cpu->stage[load_fu].status != stage_stalled) {
+			cpu->stage[load_fu].opcode = issue_queue[front_issue].opcode;
+			cpu->stage[load_fu].op1 = issue_queue[front_issue].value1;
+			cpu->stage[load_fu].op2 = issue_queue[front_issue].value2;
+			int dest =  issue_queue[front_issue].dest;
+      deQueueIssue();
+      return dest;
+		}
+    if(issue_queue[front_issue].fu == store_fu && cpu->stage[fu_lsa].status != stage_stalled) {
+			cpu->stage[store_fu].opcode = issue_queue[front_issue].opcode;
+			cpu->stage[store_fu].op1 = issue_queue[front_issue].value1;
+			cpu->stage[store_fu].op2 = issue_queue[front_issue].value2;
+			int dest =  issue_queue[front_issue].dest;
+      deQueueIssue();
+      return dest;
+		}
+    if(issue_queue[front_issue].fu == br_fu && cpu->stage[br_fu].status != stage_stalled) {
+			cpu->stage[br_fu].opcode = issue_queue[front_issue].opcode;
+			cpu->stage[br_fu].op1 = issue_queue[front_issue].value1;
+			cpu->stage[br_fu].op2 = issue_queue[front_issue].value2;
+			int dest =  issue_queue[front_issue].dest;
+      deQueueIssue();
+      return dest;
+		}
+    }
 }
 
 

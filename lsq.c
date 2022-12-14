@@ -84,24 +84,36 @@ void deQueueLSQ() {
 // Display the queue
 void displayLSQ() {
   int i;
-  if (isEmptyLSQ())
-    printf(" \n Empty Queue\n");
+  if (isEmptyLSQ()){
+    //printf(" \n Empty Queue\n");
+  }
   else {
-    printf("\n front_lsq -> %d ", front_lsq);
-    printf("\n Items -> ");
+    printf("|%10s", "index");
+    printf("|%10s", "free");
+    printf("|%10s", "opcode");
+    printf("|%10s","fu");
+    printf("|%10s", "src1_valid");
+    printf("|%10s", "src1_tag");
+    printf("|%10s", "src1_value");
+    printf("|%10s", "src2_valid");
+    printf("|%10s", "src2_tag");
+    printf("|%10s", "src2_value");
+    printf("|%10s", "lsq_prf");
+    printf("|%10s", "dest");
+    printf("|\n");
     for (i = front_lsq; i != rear_lsq; i = (i + 1) % LSQ_SIZE) {
-      printf("%d ", lsq_queue[i].index);
-      printf("%d ", lsq_queue[i].free);
-      printf("%d ", lsq_queue[i].opcode);
-      printf("%d ", lsq_queue[i].fu);
-      printf("%d ", lsq_queue[i].src1_valid);
-      printf("%d ", lsq_queue[i].src1_tag);
-      printf("%d ", lsq_queue[i].src1_value);
-      printf("%d ", lsq_queue[i].src2_valid);
-      printf("%d ", lsq_queue[i].src2_tag);
-      printf("%d ", lsq_queue[i].src2_value);
-      printf("%d ", lsq_queue[i].lsq_prf);
-      printf("%d ", lsq_queue[i].dest);
+      printf("|%10d ", lsq_queue[i].index);
+      printf("|%10d ", lsq_queue[i].free);
+      printf("|%10d ", lsq_queue[i].opcode);
+      printf("|%10d ", lsq_queue[i].fu);
+      printf("|%10d ", lsq_queue[i].src1_valid);
+      printf("|%10d ", lsq_queue[i].src1_tag);
+      printf("|%10d ", lsq_queue[i].src1_value);
+      printf("|%10d ", lsq_queue[i].src2_valid);
+      printf("|%10d ", lsq_queue[i].src2_tag);
+      printf("|%10d ", lsq_queue[i].src2_value);
+      printf("|%10d ", lsq_queue[i].lsq_prf);
+      printf("|%10d ", lsq_queue[i].dest);
     }
   }
 }

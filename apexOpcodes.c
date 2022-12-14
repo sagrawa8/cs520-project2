@@ -101,7 +101,9 @@ void cbranch_decode_ren1(cpu cpu) {
 }
 
 void ren2_dis(cpu cpu) {
-	for(int i=0;i<33;i++){
+	//printf("This is a rename2_dispatch stage.");
+	for(int i=0;i<32;i++){
+		//printf("This is a rename2_dispatch stage. Inside loop.");
 		if(!cpu->iq[i].opcode){
 			cpu->iq[i].free= 1;
 			cpu->iq[i].opcode= cpu->stage[rename2_dispatch].opcode ;
@@ -135,6 +137,7 @@ void ren2_dis(cpu cpu) {
 }
 
 void issue(cpu cpu) {
+	printf("Issue function called");
 	for(int i=0;i<32;i++){
 		if(cpu->iq[i].free && cpu->iq[i].src1_valid && cpu->iq[i].src2_valid){
 			enQueueIssue(cpu->stage[issue_instruction].fu,
@@ -154,33 +157,36 @@ retire_ins(cpu);
   Execute stage functions
 ---------------------------------------------------------*/
 void add_execute(cpu cpu) {
+	int dest = issueToFu(cpu);
 	cpu->stage[fu_alu].result=cpu->stage[fu_alu].op1+cpu->stage[fu_alu].op2;
 	reportStage(cpu,fu_alu,"res=%d+%d",cpu->stage[fu_alu].op1,cpu->stage[fu_alu].op2);
 	set_conditionCodes(cpu,fu_alu);
 	exForward(cpu,fu_alu);
-	cpu->prf[cpu->stage[fu_alu].dest_prf].valid = 1; 
-	cpu->prf[cpu->stage[fu_alu].dest_prf].value = cpu->stage[fu_alu].result; 
-	if (cpu->stage[fu_alu].result==0) cpu->prf[cpu->stage[fu_alu].dest_prf].z=1;
-	else cpu->prf[cpu->stage[fu_alu].dest_prf].z=0;
-	if (cpu->stage[fu_alu].result > 0) cpu->prf[cpu->stage[fu_alu].dest_prf].p=1;
-	else cpu->prf[cpu->stage[fu_alu].dest_prf].p=0;
+	cpu->prf[dest].valid = 1; 
+	cpu->prf[dest].value = cpu->stage[fu_alu].result; 
+	if (cpu->stage[fu_alu].result==0) cpu->prf[dest].z=1;
+	else cpu->prf[dest].z=0;
+	if (cpu->stage[fu_alu].result > 0) cpu->prf[dest].p=1;
+	else cpu->prf[dest].p=0;
 	
 }
 
 void sub_execute(cpu cpu) {
+	int dest = issueToFu(cpu);
 	cpu->stage[fu_alu].result=cpu->stage[fu_alu].op1-cpu->stage[fu_alu].op2;
 	reportStage(cpu,fu_alu,"res=%d-%d",cpu->stage[fu_alu].op1,cpu->stage[fu_alu].op2);
 	set_conditionCodes(cpu,fu_alu);
 	exForward(cpu,fu_alu);
-	cpu->prf[cpu->stage[fu_alu].dest_prf].valid = 1; 
-	cpu->prf[cpu->stage[fu_alu].dest_prf].value = cpu->stage[fu_alu].result; 
-	if (cpu->stage[fu_alu].result==0) cpu->prf[cpu->stage[fu_alu].dest_prf].z=1;
-	else cpu->prf[cpu->stage[fu_alu].dest_prf].z=0;
-	if (cpu->stage[fu_alu].result > 0) cpu->prf[cpu->stage[fu_alu].dest_prf].p=1;
-	else cpu->prf[cpu->stage[fu_alu].dest_prf].p=0;
+	cpu->prf[dest].valid = 1; 
+	cpu->prf[dest].value = cpu->stage[fu_alu].result; 
+	if (cpu->stage[fu_alu].result==0) cpu->prf[dest].z=1;
+	else cpu->prf[dest].z=0;
+	if (cpu->stage[fu_alu].result > 0) cpu->prf[dest].p=1;
+	else cpu->prf[dest].p=0;
 }
 
 void cmp_execute(cpu cpu) {
+	int dest = issueToFu(cpu);
 	cpu->stage[fu_alu].result=cpu->stage[fu_alu].op1-cpu->stage[fu_alu].op2;
 	reportStage(cpu,fu_alu,"cc based on %d-%d",cpu->stage[fu_alu].op1,cpu->stage[fu_alu].op2);
 	set_conditionCodes(cpu,fu_alu);
@@ -188,90 +194,100 @@ void cmp_execute(cpu cpu) {
 }
 
 void mul_execute(cpu cpu) {
+	int dest = issueToFu(cpu);
 	cpu->stage[fu_mul1].result=cpu->stage[fu_mul1].op1*cpu->stage[fu_mul1].op2;
 	reportStage(cpu,fu_mul1,"res=%d*%d",cpu->stage[fu_mul1].op1,cpu->stage[fu_mul1].op2);
 	set_conditionCodes(cpu,fu_mul1);
 	exForward(cpu,fu_mul1);
-	if (cpu->stage[fu_mul1].result==0) cpu->prf[cpu->stage[fu_mul1].dest_prf].z=1;
-	else cpu->prf[cpu->stage[fu_mul1].dest_prf].z=0;
-	if (cpu->stage[fu_mul1].result > 0) cpu->prf[cpu->stage[fu_mul1].dest_prf].p=1;
-	else cpu->prf[cpu->stage[fu_mul1].dest_prf].p=0;
+	cpu->prf[dest].valid = 1; 
+	cpu->prf[dest].value = cpu->stage[fu_mul1].result; 
+	if (cpu->stage[fu_mul1].result==0) cpu->prf[dest].z=1;
+	else cpu->prf[dest].z=0;
+	if (cpu->stage[fu_mul1].result > 0) cpu->prf[dest].p=1;
+	else cpu->prf[dest].p=0;
 }
 
 void and_execute(cpu cpu) {
+	int dest = issueToFu(cpu);
 	cpu->stage[fu_alu].result=cpu->stage[fu_alu].op1&cpu->stage[fu_alu].op2;
 	reportStage(cpu,fu_alu,"res=%d&%d",cpu->stage[fu_alu].op1,cpu->stage[fu_alu].op2);
 	exForward(cpu,fu_alu);
-	cpu->prf[cpu->stage[fu_alu].dest_prf].valid = 1; 
-	cpu->prf[cpu->stage[fu_alu].dest_prf].value = cpu->stage[fu_alu].result; 
-	if (cpu->stage[fu_alu].result==0) cpu->prf[cpu->stage[fu_alu].dest_prf].z=1;
-	else cpu->prf[cpu->stage[fu_alu].dest_prf].z=0;
-	if (cpu->stage[fu_alu].result > 0) cpu->prf[cpu->stage[fu_alu].dest_prf].p=1;
-	else cpu->prf[cpu->stage[fu_alu].dest_prf].p=0;
+	cpu->prf[dest].valid = 1; 
+	cpu->prf[dest].value = cpu->stage[fu_alu].result; 
+	if (cpu->stage[fu_alu].result==0) cpu->prf[dest].z=1;
+	else cpu->prf[dest].z=0;
+	if (cpu->stage[fu_alu].result > 0) cpu->prf[dest].p=1;
+	else cpu->prf[dest].p=0;
 
 }
 
 void or_execute(cpu cpu) {
+	int dest = issueToFu(cpu);
 	cpu->stage[fu_alu].result=cpu->stage[fu_alu].op1|cpu->stage[fu_alu].op2;
 	reportStage(cpu,fu_alu,"res=%d|%d",cpu->stage[fu_alu].op1,cpu->stage[fu_alu].op2);
 	exForward(cpu,fu_alu);
-	cpu->prf[cpu->stage[fu_alu].dest_prf].valid = 1; 
-	cpu->prf[cpu->stage[fu_alu].dest_prf].value = cpu->stage[fu_alu].result; 
-	if (cpu->stage[fu_alu].result==0) cpu->prf[cpu->stage[fu_alu].dest_prf].z=1;
-	else cpu->prf[cpu->stage[fu_alu].dest_prf].z=0;
-	if (cpu->stage[fu_alu].result > 0) cpu->prf[cpu->stage[fu_alu].dest_prf].p=1;
-	else cpu->prf[cpu->stage[fu_alu].dest_prf].p=0;
+	cpu->prf[dest].valid = 1; 
+	cpu->prf[dest].value = cpu->stage[fu_alu].result; 
+	if (cpu->stage[fu_alu].result==0) cpu->prf[dest].z=1;
+	else cpu->prf[dest].z=0;
+	if (cpu->stage[fu_alu].result > 0) cpu->prf[dest].p=1;
+	else cpu->prf[dest].p=0;
 }
 
 void xor_execute(cpu cpu) {
+	int dest = issueToFu(cpu);
 	cpu->stage[fu_alu].result=cpu->stage[fu_alu].op1^cpu->stage[fu_alu].op2;
 	reportStage(cpu,fu_alu,"res=%d^%d",cpu->stage[fu_alu].op1,cpu->stage[fu_alu].op2);
 	exForward(cpu,fu_alu);
-	cpu->prf[cpu->stage[fu_alu].dest_prf].valid = 1; 
-	cpu->prf[cpu->stage[fu_alu].dest_prf].value = cpu->stage[fu_alu].result; 
-	if (cpu->stage[fu_alu].result==0) cpu->prf[cpu->stage[fu_alu].dest_prf].z=1;
-	else cpu->prf[cpu->stage[fu_alu].dest_prf].z=0;
-	if (cpu->stage[fu_alu].result > 0) cpu->prf[cpu->stage[fu_alu].dest_prf].p=1;
-	else cpu->prf[cpu->stage[fu_alu].dest_prf].p=0;
+	cpu->prf[dest].valid = 1; 
+	cpu->prf[dest].value = cpu->stage[fu_alu].result; 
+	if (cpu->stage[fu_alu].result==0) cpu->prf[dest].z=1;
+	else cpu->prf[dest].z=0;
+	if (cpu->stage[fu_alu].result > 0) cpu->prf[dest].p=1;
+	else cpu->prf[dest].p=0;
 }
 
 void movc_execute(cpu cpu) {
+	int dest = issueToFu(cpu);
 	cpu->stage[fu_alu].result=cpu->stage[fu_alu].op1;
 	reportStage(cpu,fu_alu,"res=%d",cpu->stage[fu_alu].result);
 	exForward(cpu,fu_alu);
-	cpu->prf[cpu->stage[fu_alu].dest_prf].valid = 1; 
-	cpu->prf[cpu->stage[fu_alu].dest_prf].value = cpu->stage[fu_alu].result; 
-	if (cpu->stage[fu_alu].result==0) cpu->prf[cpu->stage[fu_alu].dest_prf].z=1;
-	else cpu->prf[cpu->stage[fu_alu].dest_prf].z=0;
-	if (cpu->stage[fu_alu].result > 0) cpu->prf[cpu->stage[fu_alu].dest_prf].p=1;
-	else cpu->prf[cpu->stage[fu_alu].dest_prf].p=0;
+	cpu->prf[dest].valid = 1; 
+	cpu->prf[dest].value = cpu->stage[fu_alu].result; 
+	if (cpu->stage[fu_alu].result==0) cpu->prf[dest].z=1;
+	else cpu->prf[dest].z=0;
+	if (cpu->stage[fu_alu].result > 0) cpu->prf[dest].p=1;
+	else cpu->prf[dest].p=0;
 }
 
 void load_execute(cpu cpu) {
+	int dest = issueToFu(cpu);
 	cpu->stage[fu_lsa].effectiveAddr =
 		cpu->stage[fu_lsa].op1 + cpu->stage[fu_lsa].offset;
 	reportStage(cpu,fu_lsa,"effAddr=%08x",cpu->stage[fu_lsa].effectiveAddr);
-	cpu->prf[cpu->stage[fu_lsa].dest_prf].valid = 1; 
-	cpu->prf[cpu->stage[fu_lsa].dest_prf].value = cpu->stage[fu_lsa].result; 
-	if (cpu->stage[fu_lsa].result==0) cpu->prf[cpu->stage[fu_lsa].dest_prf].z=1;
-	else cpu->prf[cpu->stage[fu_lsa].dest_prf].z=0;
-	if (cpu->stage[fu_lsa].result > 0) cpu->prf[cpu->stage[fu_lsa].dest_prf].p=1;
-	else cpu->prf[cpu->stage[fu_lsa].dest_prf].p=0;
+	cpu->prf[dest].valid = 1; 
+	cpu->prf[dest].value = cpu->stage[fu_lsa].result; 
+	if (cpu->stage[fu_lsa].result==0) cpu->prf[dest].z=1;
+	else cpu->prf[dest].z=0;
+	if (cpu->stage[fu_lsa].result > 0) cpu->prf[dest].p=1;
+	else cpu->prf[dest].p=0;
 }
 
 void store_execute(cpu cpu) {
+	int dest = issueToFu(cpu);
 	cpu->stage[fu_lsa].effectiveAddr =
 		cpu->stage[fu_lsa].op2 + cpu->stage[fu_lsa].imm;
 	reportStage(cpu,fu_lsa,"effAddr=%08x",cpu->stage[fu_lsa].effectiveAddr);
-	cpu->prf[cpu->stage[fu_lsa].dest_prf].valid = 1; 
-	cpu->prf[cpu->stage[fu_lsa].dest_prf].value = cpu->stage[fu_lsa].result; 
-	if (cpu->stage[fu_lsa].result==0) cpu->prf[cpu->stage[fu_lsa].dest_prf].z=1;
-	else cpu->prf[cpu->stage[fu_lsa].dest_prf].z=0;
-	if (cpu->stage[fu_lsa].result > 0) cpu->prf[cpu->stage[fu_lsa].dest_prf].p=1;
-	else cpu->prf[cpu->stage[fu_lsa].dest_prf].p=0;
+	cpu->prf[dest].valid = 1; 
+	cpu->prf[dest].value = cpu->stage[fu_lsa].result; 
+	if (cpu->stage[fu_lsa].result==0) cpu->prf[dest].z=1;
+	else cpu->prf[dest].z=0;
+	if (cpu->stage[fu_lsa].result > 0) cpu->prf[dest].p=1;
+	else cpu->prf[dest].p=0;
 }
 
 void cbranch_execute(cpu cpu) {
+	int dest = issueToFu(cpu);
 	if (cpu->stage[fu_br].branch_taken) {
 		// Update PC
 		cpu->pc=cpu->stage[fu_br].pc+cpu->stage[fu_br].offset;
@@ -280,12 +296,12 @@ void cbranch_execute(cpu cpu) {
 	} else {
 		reportStage(cpu,fu_br,"No action... branch not taken");
 	}
-	cpu->prf[cpu->stage[fu_br].dest_prf].valid = 1; 
-	cpu->prf[cpu->stage[fu_br].dest_prf].value = cpu->stage[fu_br].result; 
-	if (cpu->stage[fu_br].result==0) cpu->prf[cpu->stage[fu_br].dest_prf].z=1;
-	else cpu->prf[cpu->stage[fu_br].dest_prf].z=0;
-	if (cpu->stage[fu_br].result > 0) cpu->prf[cpu->stage[fu_br].dest_prf].p=1;
-	else cpu->prf[cpu->stage[fu_br].dest_prf].p=0;
+	cpu->prf[dest].valid = 1; 
+	cpu->prf[dest].value = cpu->stage[fu_br].result; 
+	if (cpu->stage[fu_br].result==0) cpu->prf[dest].z=1;
+	else cpu->prf[dest].z=0;
+	if (cpu->stage[fu_br].result > 0) cpu->prf[dest].p=1;
+	else cpu->prf[dest].p=0;
 }
 
 void fwd_execute(cpu cpu) {

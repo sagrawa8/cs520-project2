@@ -35,11 +35,12 @@ int dequeue()
 void show()
 {
     
-    if (Front == - 1)
-        printf("Empty Queue \n");
+    if (Front == - 1){
+         //printf("Empty Queue \n");
+    }  
     else
     {
-        printf("Queue: \n");
+        printf("Free PRF Queue: \n");
         for (int i = Front; i <= Rear; i++)
             printf("%d ", prf_free_queue[i]);
         printf("\n");

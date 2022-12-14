@@ -14,7 +14,7 @@
 ---------------------------------------------------------*/
 void cycle_fetch(cpu cpu);
 void cycle_decode(cpu cpu);
-void cycle_dispatch(cpu cpu);
+void dispatchToIssue(cpu cpu);
 void cycle_stage(cpu cpu,int stage);
 char * getInum(cpu cpu,int pc);
 void reportReg(cpu cpu,int r);
@@ -75,10 +75,34 @@ void initCPU(cpu cpu) {
 	}
 	for (int c=2; c>=0; c--) cpu->fwdBus[c].valid=0;
 	registerAllOpcodes();
-	for(int i=0;i<33;i++){
+	for(int i=0;i<32;i++){
 		enqueue(i);
 	}
-	show();
+	for(int i=0;i<16;i++){
+		cpu->rat[i].arf = i;
+		cpu->rat[i].valid = 0;
+		cpu->rat[i].prf = 0;
+	}
+	for(int i=0;i<32;i++){
+		cpu->prf[i].prf = i;
+		cpu->prf[i].valid = 0;
+		cpu->prf[i].value = 0;
+		cpu->prf[i].z = 0;
+		cpu->prf[i].p = 0;
+	}
+	for(int i=0;i<32;i++){
+		cpu->iq[i].free=0;
+		cpu->iq[i].opcode=0;
+		cpu->iq[i].fu=0;
+		cpu->iq[i].src1_valid=0;
+		cpu->iq[i].src1_tag=0;
+		cpu->iq[i].src1_value=0;
+		cpu->iq[i].src2_valid=0;
+		cpu->iq[i].src2_tag=0;
+		cpu->iq[i].src2_value=0;
+		cpu->iq[i].lsq_prf=0;
+		cpu->iq[i].dest=0;
+	}
 }
 
 void loadCPU(cpu cpu,char * objFileName) {
@@ -150,6 +174,98 @@ void printState(cpu cpu) {
 	}
 	printf("\n");
 
+	printf("  Reorder Buffer: ");
+	displayROB();
+
+	printf("\n");
+
+	show();
+
+	printf("\n");
+	printf(" Rename Table: ");
+	printf("\n");
+	printf("|%5s", "arf");
+    printf("|%5s", "valid");
+    printf("|%5s", "prf");
+    printf("|\n");
+	int array_length = sizeof(cpu->rat)/sizeof(cpu->rat[0]);
+	for(int i=0;i<10;i++) {
+		printf("|   R%d", cpu->rat[i].arf);
+		printf("|%5d", cpu->rat[i].valid);
+		printf("|%5d", cpu->rat[i].prf);
+    	printf("|\n");
+		}
+	for(int i=10;i<array_length;i++) {
+		printf("|  R%d", cpu->rat[i].arf);
+		printf("|%5d", cpu->rat[i].valid);
+		printf("|%5d", cpu->rat[i].prf);
+    	printf("|\n");
+		}
+
+	printf("\n");
+	printf(" PRF Table: ");
+	printf("\n");
+	printf("|%5s", "prf");
+    printf("|%5s", "valid");
+    printf("|%5s", "value");
+	printf("|%5s", "z");
+    printf("|%5s", "p");
+    printf("|\n");
+	array_length = sizeof(cpu->prf)/sizeof(cpu->prf[0]);
+	for(int i=0;i<10;i++) {
+		printf("|   P%d", cpu->prf[i].prf);
+		printf("|%5d", cpu->prf[i].valid);
+		printf("|%5d", cpu->prf[i].value);
+		printf("|%5d", cpu->prf[i].z);
+		printf("|%5d", cpu->prf[i].p);
+    	printf("|\n");
+		}
+	for(int i=10;i<array_length;i++) {
+		printf("|  P%d", cpu->prf[i].prf);
+		printf("|%5d", cpu->prf[i].valid);
+		printf("|%5d", cpu->prf[i].value);
+		printf("|%5d", cpu->prf[i].z);
+		printf("|%5d", cpu->prf[i].p);
+    	printf("|\n");
+		}
+
+	printf("\n");
+	printf(" Instruction Queue: ");
+	printf("\n");
+	printf("|%10s", "free");
+    printf("|%10s", "opcode");
+    printf("|%10s", "fu");
+	printf("|%10s", "src1_valid");
+    printf("|%10s", "src1_tag");
+	printf("|%10s", "src1_value");
+	printf("|%10s", "src2_valid");
+    printf("|%10s", "src2_tag");
+	printf("|%10s", "src2_value");
+	printf("|%10s", "L/P");
+	printf("|%10s", "dest");
+    printf("|\n");
+	array_length = sizeof(cpu->iq)/sizeof(cpu->iq[0]);
+	for(int i=0;i<array_length;i++) {
+		printf("|%10d", cpu->iq[i].free);
+		printf("|%10d", cpu->iq[i].opcode);
+		printf("|%10d", cpu->iq[i].fu);
+		printf("|%10d", cpu->iq[i].src1_valid);
+		printf("|%10d", cpu->iq[i].src1_tag);
+		printf("|%10d", cpu->iq[i].src1_value);
+		printf("|%10d", cpu->iq[i].src2_valid);
+		printf("|%10d", cpu->iq[i].src2_tag);
+		printf("|%10d", cpu->iq[i].src2_value);
+		printf("|%10d", cpu->iq[i].lsq_prf);
+		printf("|%10d", cpu->iq[i].dest);
+    	printf("|\n");
+		}
+	
+	printf("\n");
+	printf("  Load/Store Queue: ");
+	displayLSQ();
+	printf("\n");
+	
+
 	if (cpu->halt_fetch) {
 		printf("Instruction fetch is halted.\n");
 	}
@@ -163,44 +279,25 @@ void cycleCPU(cpu cpu) {
 		printf("CPU is stopped for %s. No cycles allowed.\n",cpu->abend);
 		return;
 	}
-	cpu->stage[retire].status=stage_noAction;
-	for(enum stage_enum fu=fu_alu; fu<=fu_br && cpu->stage[retire].status==stage_noAction; fu+=1) {
-		if (cpu->stage[fu].status==stage_actionComplete || cpu->stage[fu].status==stage_ready) {
-			cpu->stage[retire]=cpu->stage[fu];
+	/*for(int i=0;i<32;i++) {
+		if(cpu->prf[i].prf == rob_queue[front_rob].dest_prf && cpu->prf[i].valid == 1) {
+			cpu->stage[retire].dr = cpu->prf[i].prf;
+			cpu->stage[retire].result = cpu->prf[i].value;
 			cpu->stage[retire].status=stage_ready;
-			cpu->stage[fu].status=stage_noAction; // Available for new
 		}
-	}
+	}*/
 
-	if (cpu->stage[retire].status==stage_noAction) {
-		cpu->stage[retire].status=stage_squashed; // Nothing is ready to writeback
-		cpu->stage[retire].pc=-1;
-	}
+    cpu->stage[retire]=cpu->stage[alu_fu];
+	cpu->stage[alu_fu]=cpu->stage[issue_instruction];
+	//cpu->stage[mult_fu]=cpu->stage[issue_instruction];
+	//cpu->stage[store_fu]=cpu->stage[issue_instruction];
+	//cpu->stage[load_fu]=cpu->stage[issue_instruction];
+	//cpu->stage[br_fu]=cpu->stage[issue_instruction];
+	cpu->stage[issue_instruction]=cpu->stage[rename2_dispatch];
+	cpu->stage[rename2_dispatch]=cpu->stage[decode_rename1];
 
-	cycle_dispatch(cpu);
-	if (cpu->stage[issue_instruction].status!=stage_stalled) {
-		if (cpu->stage[rename2_dispatch].status==stage_stalled ) {
-			cpu->stage[issue_instruction].status=stage_squashed;
-			cpu->stage[issue_instruction].instruction=0;
-			cpu->stage[issue_instruction].opcode=0;
-		} else {
-			cpu->stage[issue_instruction]=cpu->stage[rename2_dispatch];
-			cpu->stage[rename2_dispatch].status=stage_squashed;
-			cpu->stage[rename2_dispatch].instruction=0;
-			cpu->stage[rename2_dispatch].opcode=0;
-		} 
-	if (cpu->stage[rename2_dispatch].status!=stage_stalled) {
-		if (cpu->stage[decode_rename1].status==stage_stalled ) {
-			cpu->stage[rename2_dispatch].status=stage_squashed;
-			cpu->stage[rename2_dispatch].instruction=0;
-			cpu->stage[rename2_dispatch].opcode=0;
-		} else {
-			cpu->stage[rename2_dispatch]=cpu->stage[decode_rename1];
-			cpu->stage[decode_rename1].status=stage_squashed;
-			cpu->stage[decode_rename1].instruction=0;
-			cpu->stage[decode_rename1].opcode=0;
-		}
-		if (cpu->stage[decode_rename1].status!=stage_stalled) {
+
+	if (cpu->stage[decode_rename1].status!=stage_stalled) {
 		if (cpu->stage[fetch].status==stage_stalled ) {
 			cpu->stage[decode_rename1].status=stage_squashed;
 			cpu->stage[decode_rename1].instruction=0;
@@ -212,11 +309,10 @@ void cycleCPU(cpu cpu) {
 			cpu->stage[fetch].opcode=0;
 		}
 	}
-	}
-	}
+	
 
 	// Reset the reports and status as required for all stages
-	for(int s=0;s<=retire;s++) {
+	for(int s=0;s<=decode_rename1;s++) {
 		cpu->stage[s].report[0]='\0';
 		switch (cpu->stage[s].status) {
 			case stage_squashed:
@@ -231,14 +327,18 @@ void cycleCPU(cpu cpu) {
 
 	if (!cpu->stop) cycle_fetch(cpu);
 	if (!cpu->stop) cycle_decode(cpu);
-	for(enum fu_enum fu=fu_alu; fu<=br_fu+2; fu++) {
-		if (!cpu->stop) cycle_stage(cpu,fu);
-	}
+	if (!cpu->stop) cycle_stage(cpu,rename2_dispatch);
+	if (!cpu->stop) cycle_stage(cpu,issue_instruction);
+	if (!cpu->stop) cycle_stage(cpu,alu_fu);
+	//if (!cpu->stop) cycle_stage(cpu,mult_fu);
+	//if (!cpu->stop) cycle_stage(cpu,load_fu);
+	//if (!cpu->stop) cycle_stage(cpu,store_fu);
+	//if (!cpu->stop) cycle_stage(cpu,br_fu);
+	if (!cpu->stop) cycle_stage(cpu,retire);
 
-
-	if (!cpu->stop && cpu->stage[retire].status==stage_ready) cycle_stage(cpu,retire);
-
-	if (!cpu->stop) cycle_stage(cpu,decode_rename1); // Do the rf part of d/rf
+	if (!cpu->stop) cycle_stage(cpu,decode_rename1);
+	
+	 // Do the rf part of d/rf
 
 	cpu->t++; // update the clock tick - This cycle has completed
 	if (cpu->t==1) {
@@ -404,38 +504,6 @@ void cycle_decode(cpu cpu) {
 	}
 }
 
-void cycle_dispatch(cpu cpu) {
-	if (cpu->stage[decode_rename1].status!=stage_actionComplete) return;
-	// Move decoded instruction onto fu
-	enum fu_enum fu=cpu->stage[decode_rename1].fu;
-	if (cpu->stage[fu].status==stage_noAction ||
-			cpu->stage[fu].status==stage_squashed ||
-			cpu->stage[fu].status==stage_actionComplete) {
-		// fu is available...
-		// Don't issue until operands are available
-		if (cpu->stage[decode_rename1].op1Valid==0) {
-			reportStage(cpu,decode_rename1,"Waiting for first operand");
-			cpu->stage[decode_rename1].status=stage_stalled;
-			return;
-		}
-		if (cpu->stage[decode_rename1].op2Valid==0) {
-			reportStage(cpu,decode_rename1,"Waiting for second operand");
-			cpu->stage[decode_rename1].status=stage_stalled;
-			return;
-		}
-		// Operands are valid... issue to fu
-		cpu->stage[fu]=cpu->stage[decode_rename1];
-		cpu->stage[fu].status=stage_ready;
-		cpu->stage[fu].report[0]='\0';
-		reportStage(cpu,decode_rename1," issued to fu %d",fu);
-		cpu->stage[decode_rename1].status=stage_actionComplete;
-	} else {
-		// fu is not available, issue needs to stall
-		reportStage(cpu,decode_rename1,"Required FU busy, status=%s",
-			statusString(cpu->stage[fu].status));
-		cpu->stage[decode_rename1].status=stage_stalled;
-	}
-}
 
 void cycle_stage(cpu cpu,int stage) {
 	for(enum stage_enum s=stage+1;s<=pipeEnd[stage];s++) {
