@@ -83,10 +83,10 @@ int issueToFu(cpu cpu){
 		}
     else if(issue_queue[front_issue].fu == fu_lsa) {
 			cpu->stage[fu_lsa].opcode = issue_queue[front_issue].opcode;
-			cpu->stage[fu_lsa].op1 = issue_queue[front_issue].value1;
+			cpu->stage[fu_lsa].op2 = issue_queue[front_issue].value1;
 			cpu->stage[fu_lsa].imm = issue_queue[front_issue].value2;
 			int dest_lsa =  issue_queue[front_issue].dest_issue;
-      //deQueueIssue();
+      deQueueIssue();
       return dest_lsa;
 		}
     else if(issue_queue[front_issue].fu == fu_br) {

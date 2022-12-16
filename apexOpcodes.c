@@ -109,9 +109,10 @@ void cbranch_decode_ren1(cpu cpu) {
 void ren2_dis(cpu cpu) {
 	//cpu->stage[rename2_dispatch].status=stage_actionComplete;
 	//printf("This is a rename2_dispatch stage.");
-	for(int i=0;i<32;i++){
+	int array_length = sizeof(cpu->iq)/sizeof(cpu->iq[0]);
+	for(int i=0;i<array_length;i++){
 		//printf("This is a rename2_dispatch stage. Inside loop.");
-		if(!cpu->iq[i].opcode){
+		if(cpu->iq[i].free == -1){
 			cpu->iq[i].free= 1;
 			cpu->iq[i].opcode= cpu->stage[rename2_dispatch].opcode ;
 			cpu->iq[i].fu = cpu->stage[rename2_dispatch].fu;
@@ -123,6 +124,9 @@ void ren2_dis(cpu cpu) {
   			cpu->iq[i].src2_value = cpu->stage[rename2_dispatch].op2;
 			cpu->iq[i].dest = cpu->rat[cpu->stage[rename2_dispatch].dr].prf;
 			if(cpu->stage[rename2_dispatch].opcode == LOAD || cpu->stage[rename2_dispatch].opcode == STORE){
+				cpu->iq[i].src2_value = cpu->stage[rename2_dispatch].imm;
+				cpu->iq[i].src1_value = cpu->stage[rename2_dispatch].op2;
+				cpu->iq[i].dest = cpu->stage[rename2_dispatch].op1;
 				cpu->iq[i].lsq_prf = 1;
 			}
   			else{
@@ -255,7 +259,7 @@ void movc_execute(cpu cpu) {
 
 void load_execute(cpu cpu) {
 	int dest_load = issueToFu(cpu);
-	deQueueIssue();
+	//deQueueIssue();
 	cpu->stage[fu_lsa].effectiveAddr =
 		cpu->stage[fu_lsa].op1 + cpu->stage[fu_lsa].op2;
 	reportStage(cpu,fu_lsa,"effAddr=%08x",cpu->stage[fu_lsa].effectiveAddr);
@@ -271,21 +275,21 @@ void load_execute(cpu cpu) {
 
 void store_execute(cpu cpu) {
 	int dest_store = issueToFu(cpu);
-	deQueueIssue();
 	cpu->stage[fu_lsa].effectiveAddr =
 		cpu->stage[fu_lsa].op2 + cpu->stage[fu_lsa].imm;
 	reportStage(cpu,fu_lsa,"effAddr=%08x",cpu->stage[fu_lsa].effectiveAddr);
 
-	dstore(cpu,cpu->stage[fu_lsa].effectiveAddr,cpu->stage[fu_lsa].op1);
+
+	dstore(cpu,cpu->stage[fu_lsa].effectiveAddr,dest_store);
 	reportStage(cpu,fu_lsa,"MEM[%06x]=%d",
 		cpu->stage[fu_lsa].effectiveAddr,
-		cpu->stage[fu_lsa].op1);
+		dest_store);
 
 	cpu->prf[dest_store].valid = 1; 
 	cpu->prf[dest_store].value = cpu->stage[fu_lsa].effectiveAddr; 
 	updateIQ(cpu,dest_store);
-	updateLSQ_Store(1,cpu->rat[cpu->stage[fu_lsa].op2].prf
-	,cpu->prf[cpu->rat[cpu->stage[fu_lsa].op2].prf].value,1,cpu->stage[fu_lsa].effectiveAddr);
+	updateLSQ_Store(1,cpu->rat[dest_store].prf
+	,cpu->prf[cpu->rat[cpu->stage[fu_lsa].sr1].prf].value,1,cpu->stage[fu_lsa].effectiveAddr);
 }
 
 void cbranch_execute(cpu cpu) {
@@ -352,14 +356,14 @@ void registerAllOpcodes() {
 	registerOpcode(XOR,fu_alu,dss_decode_ren1,ren2_dis,issueInIq,xor_execute,fwd_execute,fwd_execute,dest_writeback);
 	registerOpcode(MOVC,fu_alu,movc_decode_ren1,ren2_dis,issueInIq,movc_execute,fwd_execute,fwd_execute,dest_writeback);
 	registerOpcode(LOAD,fu_lsa,dsi_decode_ren1,ren2_dis,issueInIq,load_execute,fwd_execute,fwd_execute,dest_writeback);
-	registerOpcode(STORE,fu_lsa,ssi_decode_ren1,ren2_dis,issueInIq,store_execute,fwd_execute,fwd_execute,fwd_execute);
+	registerOpcode(STORE,fu_lsa,ssi_decode_ren1,ren2_dis,issueInIq,store_execute,fwd_execute,fwd_execute,dest_writeback);
 	registerOpcode(CMP,fu_alu,ssi_decode_ren1,ren2_dis,issueInIq,cmp_execute,fwd_execute,fwd_execute,NULL);
 	registerOpcode(JUMP,fu_br,cbranch_decode_ren1,ren2_dis,issueInIq,cbranch_execute,fwd_execute,fwd_execute,NULL);
 	registerOpcode(BZ,fu_br,cbranch_decode_ren1,ren2_dis,issueInIq,cbranch_execute,fwd_execute,fwd_execute,NULL);
 	registerOpcode(BNZ,fu_br,cbranch_decode_ren1,ren2_dis,issueInIq,cbranch_execute,fwd_execute,fwd_execute,NULL);
 	registerOpcode(BP,fu_br,cbranch_decode_ren1,ren2_dis,issueInIq,cbranch_execute,fwd_execute,fwd_execute,NULL);
 	registerOpcode(BNP,fu_br,cbranch_decode_ren1,ren2_dis,issueInIq,cbranch_execute,fwd_execute,fwd_execute,NULL);
-	registerOpcode(HALT,fu_alu,halt_decode_ren1,NULL,issueInIq,fwd_execute,fwd_execute,fwd_execute,dest_writeback);
+	registerOpcode(HALT,fu_alu,halt_decode_ren1,ren2_dis,issueInIq,fwd_execute,fwd_execute,fwd_execute,dest_writeback);
 }
 
 void registerOpcode(int opNum,enum stage_enum fu,
