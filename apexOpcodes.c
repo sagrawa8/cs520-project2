@@ -34,7 +34,7 @@ void fetch_register2(cpu cpu);
 void check_dest(cpu cpu);
 void set_conditionCodes(cpu cpu,enum stage_enum stage);
 void rob_insert(cpu cpu);
-void updateIQ(cpu cpu,int dest);
+void updateIQ(cpu cpu,int dest_IQ);
 /*---------------------------------------------------------
   Global Variables
 ---------------------------------------------------------*/
@@ -49,7 +49,7 @@ void dss_decode_ren1(cpu cpu) {
 	rob_insert(cpu);
 	fetch_register1(cpu);
 	fetch_register2(cpu);
-	cpu->stage[decode_rename1].status=stage_actionComplete;
+	//cpu->stage[decode_rename1].status=stage_actionComplete;
 }
 
 void dsi_decode_ren1(cpu cpu) {
@@ -57,30 +57,30 @@ void dsi_decode_ren1(cpu cpu) {
 	rob_insert(cpu);
 	fetch_register1(cpu);
 	// Second operand is immediate... no fetch required
-	if(cpu->stage[rename2_dispatch].opcode == LOAD){
-			enQueueLSQ(1,LOAD,0,0,0,0,0,0,0,cpu->stage[rename2_dispatch].sr1);
+	if(cpu->stage[decode_rename1].opcode == LOAD){
+		enQueueLSQ(1,1,-1,-1,-1,0,-1,cpu->rat[cpu->stage[decode_rename1].dr].prf);
 	}
-	cpu->stage[decode_rename1].status=stage_actionComplete;
+	//cpu->stage[decode_rename1].status=stage_actionComplete;
 }
 
 void ssi_decode_ren1(cpu cpu) {
 	rob_insert(cpu);
 	fetch_register1(cpu);
 	fetch_register2(cpu);
-	enQueueLSQ(1,STORE,0,0,0,0,0,0,0,cpu->stage[rename2_dispatch].sr1);
-	cpu->stage[decode_rename1].status=stage_actionComplete;
+	enQueueLSQ(1,0,0,cpu->rat[cpu->stage[decode_rename1].sr1].prf,-1,0,-1,-1);
+	//cpu->stage[decode_rename1].status=stage_actionComplete;
 }
 
 void movc_decode_ren1(cpu cpu) {
 	check_dest(cpu);
 	rob_insert(cpu);
-	cpu->stage[decode_rename1].status=stage_actionComplete;
+	//cpu->stage[decode_rename1].status=stage_actionComplete;
 }
 
 void halt_decode_ren1(cpu cpu) {
 	//check_dest(cpu);
 	rob_insert(cpu);
-	cpu->stage[decode_rename1].status=stage_actionComplete;
+	//cpu->stage[decode_rename1].status=stage_actionComplete;
 }
 
 void cbranch_decode_ren1(cpu cpu) {
@@ -102,11 +102,12 @@ void cbranch_decode_ren1(cpu cpu) {
 	} else {
 	  reportStage(cpu,decode_rename1," branch not taken");
   }
-  cpu->stage[decode_rename1].status=stage_actionComplete;
+  //cpu->stage[decode_rename1].status=stage_actionComplete;
 
 }
 
 void ren2_dis(cpu cpu) {
+	//cpu->stage[rename2_dispatch].status=stage_actionComplete;
 	//printf("This is a rename2_dispatch stage.");
 	for(int i=0;i<32;i++){
 		//printf("This is a rename2_dispatch stage. Inside loop.");
@@ -165,35 +166,35 @@ retire_ins(cpu);
   Execute stage functions
 ---------------------------------------------------------*/
 void add_execute(cpu cpu) {
-	int dest = issueToFu(cpu);
+	int dest_add = issueToFu(cpu);
 	cpu->stage[fu_alu].result=cpu->stage[fu_alu].op1+cpu->stage[fu_alu].op2;
 	reportStage(cpu,fu_alu,"res=%d+%d",cpu->stage[fu_alu].op1,cpu->stage[fu_alu].op2);
 	set_conditionCodes(cpu,fu_alu);
-	cpu->prf[dest].valid = 1; 
-	cpu->prf[dest].value = cpu->stage[fu_alu].result; 
-	if (cpu->stage[fu_alu].result==0) cpu->prf[dest].z=1;
-	else cpu->prf[dest].z=0;
-	if (cpu->stage[fu_alu].result > 0) cpu->prf[dest].p=1;
-	else cpu->prf[dest].p=0;
-	updateIQ(cpu,dest);
+	cpu->prf[dest_add].valid = 1; 
+	cpu->prf[dest_add].value = cpu->stage[fu_alu].result; 
+	if (cpu->stage[fu_alu].result==0) cpu->prf[dest_add].z=1;
+	else cpu->prf[dest_add].z=0;
+	if (cpu->stage[fu_alu].result > 0) cpu->prf[dest_add].p=1;
+	else cpu->prf[dest_add].p=0;
+	updateIQ(cpu,dest_add);
 }
 
 void sub_execute(cpu cpu) {
-	int dest = issueToFu(cpu);
+	int dest_sub = issueToFu(cpu);
 	cpu->stage[fu_alu].result=cpu->stage[fu_alu].op1-cpu->stage[fu_alu].op2;
 	reportStage(cpu,fu_alu,"res=%d-%d",cpu->stage[fu_alu].op1,cpu->stage[fu_alu].op2);
 	set_conditionCodes(cpu,fu_alu);
-	cpu->prf[dest].valid = 1; 
-	cpu->prf[dest].value = cpu->stage[fu_alu].result; 
-	if (cpu->stage[fu_alu].result==0) cpu->prf[dest].z=1;
-	else cpu->prf[dest].z=0;
-	if (cpu->stage[fu_alu].result > 0) cpu->prf[dest].p=1;
-	else cpu->prf[dest].p=0;
-	updateIQ(cpu,dest);
+	cpu->prf[dest_sub].valid = 1; 
+	cpu->prf[dest_sub].value = cpu->stage[fu_alu].result; 
+	if (cpu->stage[fu_alu].result==0) cpu->prf[dest_sub].z=1;
+	else cpu->prf[dest_sub].z=0;
+	if (cpu->stage[fu_alu].result > 0) cpu->prf[dest_sub].p=1;
+	else cpu->prf[dest_sub].p=0;
+	updateIQ(cpu,dest_sub);
 }
 
 void cmp_execute(cpu cpu) {
-	int dest = issueToFu(cpu);
+	int dest_cmp = issueToFu(cpu);
 	cpu->stage[fu_alu].result=cpu->stage[fu_alu].op1-cpu->stage[fu_alu].op2;
 	reportStage(cpu,fu_alu,"cc based on %d-%d",cpu->stage[fu_alu].op1,cpu->stage[fu_alu].op2);
 	set_conditionCodes(cpu,fu_alu);
@@ -201,104 +202,94 @@ void cmp_execute(cpu cpu) {
 }
 
 void mul_execute(cpu cpu) {
-	int dest = issueToFu(cpu);
+	int dest_mul = issueToFu(cpu);
+	deQueueIssue();
+	printf("\nin mul execute : %d",dest_mul);
 	cpu->stage[fu_mul1].result=cpu->stage[fu_mul1].op1*cpu->stage[fu_mul1].op2;
 	reportStage(cpu,fu_mul1,"res=%d*%d",cpu->stage[fu_mul1].op1,cpu->stage[fu_mul1].op2);
 	set_conditionCodes(cpu,fu_mul1);
-	cpu->prf[dest].valid = 1; 
-	cpu->prf[dest].value = cpu->stage[fu_mul1].result; 
-	if (cpu->stage[fu_mul1].result==0) cpu->prf[dest].z=1;
-	else cpu->prf[dest].z=0;
-	if (cpu->stage[fu_mul1].result > 0) cpu->prf[dest].p=1;
-	else cpu->prf[dest].p=0;
-	updateIQ(cpu,dest);
+	cpu->prf[dest_mul].valid = 1; 
+	cpu->prf[dest_mul].value = cpu->stage[fu_mul1].result; 
+	if (cpu->stage[fu_mul1].result==0) cpu->prf[dest_mul].z=1;
+	else cpu->prf[dest_mul].z=0;
+	if (cpu->stage[fu_mul1].result > 0) cpu->prf[dest_mul].p=1;
+	else cpu->prf[dest_mul].p=0;
+	updateIQ(cpu,dest_mul);
 }
 
 void and_execute(cpu cpu) {
-	int dest = issueToFu(cpu);
+	int dest_and = issueToFu(cpu);
 	cpu->stage[fu_alu].result=cpu->stage[fu_alu].op1&cpu->stage[fu_alu].op2;
 	reportStage(cpu,fu_alu,"res=%d&%d",cpu->stage[fu_alu].op1,cpu->stage[fu_alu].op2);
-	cpu->prf[dest].valid = 1; 
-	cpu->prf[dest].value = cpu->stage[fu_alu].result; 
-	if (cpu->stage[fu_alu].result==0) cpu->prf[dest].z=1;
-	else cpu->prf[dest].z=0;
-	if (cpu->stage[fu_alu].result > 0) cpu->prf[dest].p=1;
-	else cpu->prf[dest].p=0;
-	updateIQ(cpu,dest);
+	cpu->prf[dest_and].valid = 1; 
+	cpu->prf[dest_and].value = cpu->stage[fu_alu].result; 
+	updateIQ(cpu,dest_and);
 }
 
 void or_execute(cpu cpu) {
-	int dest = issueToFu(cpu);
+	int dest_or = issueToFu(cpu);
 	cpu->stage[fu_alu].result=cpu->stage[fu_alu].op1|cpu->stage[fu_alu].op2;
 	reportStage(cpu,fu_alu,"res=%d|%d",cpu->stage[fu_alu].op1,cpu->stage[fu_alu].op2);
-	cpu->prf[dest].valid = 1; 
-	cpu->prf[dest].value = cpu->stage[fu_alu].result; 
-	if (cpu->stage[fu_alu].result==0) cpu->prf[dest].z=1;
-	else cpu->prf[dest].z=0;
-	if (cpu->stage[fu_alu].result > 0) cpu->prf[dest].p=1;
-	else cpu->prf[dest].p=0;
-	updateIQ(cpu,dest);
+	cpu->prf[dest_or].valid = 1; 
+	cpu->prf[dest_or].value = cpu->stage[fu_alu].result; 
+	updateIQ(cpu,dest_or);
 }
 
 void xor_execute(cpu cpu) {
-	int dest = issueToFu(cpu);
+	int dest_xor = issueToFu(cpu);
 	cpu->stage[fu_alu].result=cpu->stage[fu_alu].op1^cpu->stage[fu_alu].op2;
 	reportStage(cpu,fu_alu,"res=%d^%d",cpu->stage[fu_alu].op1,cpu->stage[fu_alu].op2);
-	cpu->prf[dest].valid = 1; 
-	cpu->prf[dest].value = cpu->stage[fu_alu].result; 
-	if (cpu->stage[fu_alu].result==0) cpu->prf[dest].z=1;
-	else cpu->prf[dest].z=0;
-	if (cpu->stage[fu_alu].result > 0) cpu->prf[dest].p=1;
-	else cpu->prf[dest].p=0;
-	updateIQ(cpu,dest);
+	cpu->prf[dest_xor].valid = 1; 
+	cpu->prf[dest_xor].value = cpu->stage[fu_alu].result; 
+	updateIQ(cpu,dest_xor);
 }
 
 void movc_execute(cpu cpu) {
-	int dest = issueToFu(cpu);
+	int dest_mov = issueToFu(cpu);
 	cpu->stage[fu_alu].result=cpu->stage[fu_alu].op1;
 	reportStage(cpu,fu_alu,"res=%d",cpu->stage[fu_alu].result);
-	cpu->prf[dest].valid = 1; 
-	cpu->prf[dest].value = cpu->stage[fu_alu].result; 
-	if (cpu->stage[fu_alu].result==0) cpu->prf[dest].z=1;
-	else cpu->prf[dest].z=0;
-	if (cpu->stage[fu_alu].result > 0) cpu->prf[dest].p=1;
-	else cpu->prf[dest].p=0;
-	updateIQ(cpu,dest);
+	cpu->prf[dest_mov].valid = 1; 
+	cpu->prf[dest_mov].value = cpu->stage[fu_alu].result; 
+	updateIQ(cpu,dest_mov);
 }
 
 void load_execute(cpu cpu) {
-	int dest = issueToFu(cpu);
+	int dest_load = issueToFu(cpu);
+	deQueueIssue();
 	cpu->stage[fu_lsa].effectiveAddr =
-		cpu->stage[fu_lsa].op1 + cpu->stage[fu_lsa].offset;
+		cpu->stage[fu_lsa].op1 + cpu->stage[fu_lsa].op2;
 	reportStage(cpu,fu_lsa,"effAddr=%08x",cpu->stage[fu_lsa].effectiveAddr);
-	cpu->prf[dest].valid = 1; 
-	cpu->prf[dest].value = cpu->stage[fu_lsa].result; 
-	if (cpu->stage[fu_lsa].result==0) cpu->prf[dest].z=1;
-	else cpu->prf[dest].z=0;
-	if (cpu->stage[fu_lsa].result > 0) cpu->prf[dest].p=1;
-	else cpu->prf[dest].p=0;
-	updateIQ(cpu,dest);
-	updateLSQ(cpu->prf[dest].value,dest,cpu->stage[fu_lsa].effectiveAddr);
+
+	cpu->stage[fu_lsa].result = dfetch(cpu,cpu->stage[fu_lsa].effectiveAddr);
+	reportStage(cpu,fu_lsa,"res=MEM[%06x]",cpu->stage[fu_lsa].effectiveAddr);
+	
+	cpu->prf[dest_load].valid = 1; 
+	cpu->prf[dest_load].value = cpu->stage[fu_lsa].result; 
+	updateIQ(cpu,dest_load);
+	updateLSQ(cpu->prf[dest_load].value,dest_load,cpu->stage[fu_lsa].effectiveAddr);
 }
 
 void store_execute(cpu cpu) {
-	int dest = issueToFu(cpu);
+	int dest_store = issueToFu(cpu);
+	deQueueIssue();
 	cpu->stage[fu_lsa].effectiveAddr =
-		cpu->stage[fu_lsa].op1 + cpu->stage[fu_lsa].imm;
+		cpu->stage[fu_lsa].op2 + cpu->stage[fu_lsa].imm;
 	reportStage(cpu,fu_lsa,"effAddr=%08x",cpu->stage[fu_lsa].effectiveAddr);
-	cpu->prf[dest].valid = 1; 
-	cpu->prf[dest].value = cpu->stage[fu_lsa].result; 
-	if (cpu->stage[fu_lsa].result==0) cpu->prf[dest].z=1;
-	else cpu->prf[dest].z=0;
-	if (cpu->stage[fu_lsa].result > 0) cpu->prf[dest].p=1;
-	else cpu->prf[dest].p=0;
-	updateIQ(cpu,dest);
-	updateLSQ(cpu->prf[dest].value,dest,cpu->stage[fu_lsa].effectiveAddr);
 
+	dstore(cpu,cpu->stage[fu_lsa].effectiveAddr,cpu->stage[fu_lsa].op1);
+	reportStage(cpu,fu_lsa,"MEM[%06x]=%d",
+		cpu->stage[fu_lsa].effectiveAddr,
+		cpu->stage[fu_lsa].op1);
+
+	cpu->prf[dest_store].valid = 1; 
+	cpu->prf[dest_store].value = cpu->stage[fu_lsa].effectiveAddr; 
+	updateIQ(cpu,dest_store);
+	updateLSQ_Store(1,cpu->rat[cpu->stage[fu_lsa].op2].prf
+	,cpu->prf[cpu->rat[cpu->stage[fu_lsa].op2].prf].value,1,cpu->stage[fu_lsa].effectiveAddr);
 }
 
 void cbranch_execute(cpu cpu) {
-	int dest = issueToFu(cpu);
+	int dest_branch = issueToFu(cpu);
 	if (cpu->stage[fu_br].branch_taken) {
 		// Update PC
 		cpu->pc=cpu->stage[fu_br].pc+cpu->stage[fu_br].offset;
@@ -307,13 +298,9 @@ void cbranch_execute(cpu cpu) {
 	} else {
 		reportStage(cpu,fu_br,"No action... branch not taken");
 	}
-	cpu->prf[dest].valid = 1; 
-	cpu->prf[dest].value = cpu->stage[fu_br].result; 
-	if (cpu->stage[fu_br].result==0) cpu->prf[dest].z=1;
-	else cpu->prf[dest].z=0;
-	if (cpu->stage[fu_br].result > 0) cpu->prf[dest].p=1;
-	else cpu->prf[dest].p=0;
-	updateIQ(cpu,dest);
+	cpu->prf[dest_branch].valid = 1; 
+	cpu->prf[dest_branch].value = cpu->stage[fu_br].result; 
+	updateIQ(cpu,dest_branch);
 }
 
 void fwd_execute(cpu cpu) {
@@ -323,10 +310,10 @@ void fwd_execute(cpu cpu) {
 /*---------------------------------------------------------
   Memory  stage functions
 ---------------------------------------------------------*/
-void load_memory(cpu cpu) {
-	cpu->stage[fu_lsa].result = dfetch(cpu,cpu->stage[fu_lsa].effectiveAddr);
-	reportStage(cpu,fu_lsa,"res=MEM[%06x]",cpu->stage[fu_lsa].effectiveAddr);
-}
+//void load_memory(cpu cpu) {
+//	cpu->stage[fu_lsa].result = dfetch(cpu,cpu->stage[fu_lsa].effectiveAddr);
+//	reportStage(cpu,fu_lsa,"res=MEM[%06x]",cpu->stage[fu_lsa].effectiveAddr);
+//}
 
 void store_memory(cpu cpu) {
 	dstore(cpu,cpu->stage[fu_lsa].effectiveAddr,cpu->stage[fu_lsa].op1);
@@ -340,10 +327,12 @@ void store_memory(cpu cpu) {
 ---------------------------------------------------------*/
 void dest_writeback(cpu cpu) {
 	retire_ins(cpu);
+	cpu->stage[retire].status = stage_noAction;
 }
 
 void halt_writeback(cpu cpu) {
 	cpu->stop=1;
+	cpu->stage[retire].status = stage_noAction;
 	strcpy(cpu->abend,"HALT instruction retired");
 	reportStage(cpu,retire,"cpu stopped");
 }
@@ -362,8 +351,8 @@ void registerAllOpcodes() {
 	registerOpcode(OR,fu_alu,dss_decode_ren1,ren2_dis,issueInIq,or_execute,fwd_execute,fwd_execute,dest_writeback);
 	registerOpcode(XOR,fu_alu,dss_decode_ren1,ren2_dis,issueInIq,xor_execute,fwd_execute,fwd_execute,dest_writeback);
 	registerOpcode(MOVC,fu_alu,movc_decode_ren1,ren2_dis,issueInIq,movc_execute,fwd_execute,fwd_execute,dest_writeback);
-	registerOpcode(LOAD,fu_lsa,dsi_decode_ren1,ren2_dis,issueInIq,load_execute,load_memory,fwd_execute,dest_writeback);
-	registerOpcode(STORE,fu_lsa,ssi_decode_ren1,ren2_dis,issueInIq,store_execute,store_memory,fwd_execute,fwd_execute);
+	registerOpcode(LOAD,fu_lsa,dsi_decode_ren1,ren2_dis,issueInIq,load_execute,fwd_execute,fwd_execute,dest_writeback);
+	registerOpcode(STORE,fu_lsa,ssi_decode_ren1,ren2_dis,issueInIq,store_execute,fwd_execute,fwd_execute,fwd_execute);
 	registerOpcode(CMP,fu_alu,ssi_decode_ren1,ren2_dis,issueInIq,cmp_execute,fwd_execute,fwd_execute,NULL);
 	registerOpcode(JUMP,fu_br,cbranch_decode_ren1,ren2_dis,issueInIq,cbranch_execute,fwd_execute,fwd_execute,NULL);
 	registerOpcode(BZ,fu_br,cbranch_decode_ren1,ren2_dis,issueInIq,cbranch_execute,fwd_execute,fwd_execute,NULL);
@@ -510,20 +499,22 @@ void rob_insert(cpu cpu){
 	if(cpu->stage[decode_rename1].opcode==HALT){
 		enQueueROB(1,cpu->stage[decode_rename1].opcode , cpu->stage[decode_rename1].pc ,-1,-1);
 	}
-	enQueueROB(1,cpu->stage[decode_rename1].opcode,cpu->stage[decode_rename1].pc,
-	cpu->stage[decode_rename1].dr,cpu->rat[cpu->stage[decode_rename1].dr].prf);
+	else {
+		enQueueROB(1,cpu->stage[decode_rename1].opcode,cpu->stage[decode_rename1].pc,
+		cpu->stage[decode_rename1].dr,cpu->rat[cpu->stage[decode_rename1].dr].prf);
+	}
 }
 
-void updateIQ(cpu cpu,int dest){
+void updateIQ(cpu cpu,int dest_IQ){
 	int array_length = sizeof(cpu->iq)/sizeof(cpu->iq[0]);
 	for(int i=0;i<array_length;i++) {
-		if(cpu->iq[i].src1_tag == dest){
+		if(cpu->iq[i].src1_tag == dest_IQ){
 			cpu->iq[i].src1_valid = 1;
-			cpu->iq[i].src1_value = cpu->prf[dest].value;
+			cpu->iq[i].src1_value = cpu->prf[dest_IQ].value;
 		}
-		if(cpu->iq[i].src2_tag == dest){
+		if(cpu->iq[i].src2_tag == dest_IQ){
 			cpu->iq[i].src2_valid = 1;
-			cpu->iq[i].src2_value = cpu->prf[dest].value;
+			cpu->iq[i].src2_value = cpu->prf[dest_IQ].value;
 		}
 		}
 }
