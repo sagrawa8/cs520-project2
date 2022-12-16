@@ -30,19 +30,22 @@ int isEmptyROB() {
 
 void retire_ins(cpu cpu){
   printf("Retiring call");
-  if(rob_queue[front_rob].opcode==HALT){
+  if(rob_queue[front_rob].opcode == HALT) {
+    printf("in halt");
     cpu->stop=1;
     rob_queue[front_rob].free=0;
     deQueueROB(); 
 	  strcpy(cpu->abend,"HALT instruction retired");
 	  reportStage(cpu,retire,"cpu stopped");
   }
-  if(cpu->prf[rob_queue[front_rob].dest_prf].valid){
+  else if(cpu->prf[rob_queue[front_rob].dest_prf].valid){
     int reg =  rob_queue[front_rob].dest_arf;
-    printf("");
-	  cpu->reg[reg] = cpu->prf[rob_queue[front_rob].dest_prf].value;
+    cpu->reg[reg] = cpu->prf[rob_queue[front_rob].dest_prf].value;
     rob_queue[front_rob].free=0;
-	  deQueueROB();    
+    if(rob_queue[front_rob].opcode == LOAD || rob_queue[front_rob].opcode == STORE) {
+      deQueueLSQ();
+    }
+	  deQueueROB();     
 	  reportStage(cpu,retire,"R%02d<-%d",reg,cpu->reg[reg]);
   }
 }

@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include "apexCPU.h"
 
 #define ISSUE_SIZE 32
 
@@ -7,7 +8,7 @@ typedef struct Issue {
   enum stage_enum fu;
   int value1;
   int value2;
-  int dest;
+  int dest_issue;
 }issue;
 
 issue issue_queue[ISSUE_SIZE];
@@ -30,17 +31,17 @@ void enQueueIssue(enum opcode_enum opcode,
   enum stage_enum fu,
   int value1,
   int value2,
-  int dest) {
+  int dest_insert) {
   if (isFullIssue())
     printf("\n Queue is full!! \n");
   else {
-    if (front_issue == -1) front_issue = 0;
-  rear_issue = (rear_issue + 1);
+  if (front_issue == -1) front_issue = 0;
+  rear_issue = (rear_issue + 1) % ISSUE_SIZE;
   issue_queue[rear_issue].opcode = opcode;
   issue_queue[rear_issue].fu = fu;
   issue_queue[rear_issue].value1 = value1;
   issue_queue[rear_issue].value2 = value2;
-  issue_queue[rear_issue].dest = dest;
+  issue_queue[rear_issue].dest_issue = dest_insert;
   //printf("\n Inserted -> %d", issue_queue[rear_issue].opcode);
   }
 }
@@ -69,35 +70,34 @@ int issueToFu(cpu cpu){
 			cpu->stage[fu_alu].opcode = issue_queue[front_issue].opcode;
 			cpu->stage[fu_alu].op1 = issue_queue[front_issue].value1;
 			cpu->stage[fu_alu].op2 = issue_queue[front_issue].value2;
-			int dest =  issue_queue[front_issue].dest;
+			int dest_alu =  issue_queue[front_issue].dest_issue;
       deQueueIssue();
-      return dest;
+      return dest_alu;
 		}
-    if(issue_queue[front_issue].fu == fu_mul1 && cpu->stage[fu_mul1].status != stage_stalled) {
+    else if(issue_queue[front_issue].fu == fu_mul1) {
 			cpu->stage[fu_mul1].opcode = issue_queue[front_issue].opcode;
 			cpu->stage[fu_mul1].op1 = issue_queue[front_issue].value1;
 			cpu->stage[fu_mul1].op2 = issue_queue[front_issue].value2;
-			int dest =  issue_queue[front_issue].dest;
-      deQueueIssue();
-      return dest;
+			int dest_mul =  issue_queue[front_issue].dest_issue;
+      return dest_mul;
 		}
-    if(issue_queue[front_issue].fu == fu_lsa && cpu->stage[fu_lsa].status != stage_stalled) {
+    else if(issue_queue[front_issue].fu == fu_lsa) {
 			cpu->stage[fu_lsa].opcode = issue_queue[front_issue].opcode;
 			cpu->stage[fu_lsa].op1 = issue_queue[front_issue].value1;
 			cpu->stage[fu_lsa].imm = issue_queue[front_issue].value2;
-			int dest =  issue_queue[front_issue].dest;
-      deQueueIssue();
-      return dest;
+			int dest_lsa =  issue_queue[front_issue].dest_issue;
+      //deQueueIssue();
+      return dest_lsa;
 		}
-    if(issue_queue[front_issue].fu == fu_br && cpu->stage[fu_br].status != stage_stalled) {
+    else if(issue_queue[front_issue].fu == fu_br) {
 			cpu->stage[fu_br].opcode = issue_queue[front_issue].opcode;
 			cpu->stage[fu_br].op1 = issue_queue[front_issue].value1;
 			cpu->stage[fu_br].op2 = issue_queue[front_issue].value2;
-			int dest =  issue_queue[front_issue].dest;
+			int dest_br =  issue_queue[front_issue].dest_issue;
       deQueueIssue();
-      return dest;
+      return dest_br;
 		}
-    }
+  }
 
 
 void displayIssueQueue() {
@@ -112,12 +112,12 @@ void displayIssueQueue() {
     printf("|%10s", "value2");
     printf("|%10s", "dest");
     printf("|\n");
-    for (i = front_issue; i != rear_issue; i = (i + 1) % ISSUE_SIZE) {
+    for (i = front_issue; i <= rear_issue; i = (i + 1)) {
       printf("|%10d", issue_queue[i].opcode);
       printf("|%10d", issue_queue[i].fu);
       printf("|%10d", issue_queue[i].value1);
       printf("|%10d", issue_queue[i].value2);
-      printf("|%10d", issue_queue[i].dest);
+      printf("|%10d", issue_queue[i].dest_issue);
       printf("|\n");
     }
   }
