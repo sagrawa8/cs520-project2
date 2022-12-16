@@ -42,11 +42,17 @@ void retire_ins(cpu cpu){
     int reg =  rob_queue[front_rob].dest_arf;
     cpu->reg[reg] = cpu->prf[rob_queue[front_rob].dest_prf].value;
     rob_queue[front_rob].free=0;
-    if(rob_queue[front_rob].opcode == LOAD || rob_queue[front_rob].opcode == STORE) {
+    if(rob_queue[front_rob].opcode == LOAD) {
       deQueueLSQ();
     }
 	  deQueueROB();     
 	  reportStage(cpu,retire,"R%02d<-%d",reg,cpu->reg[reg]);
+  }
+  else if(rob_queue[front_rob].opcode == STORE){
+    rob_queue[front_rob].free=0;
+
+    deQueueLSQ();
+    deQueueROB(); 
   }
 }
 
