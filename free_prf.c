@@ -18,7 +18,7 @@ void enqueue(int insert_item)
     {
         if (Front == - 1)
         Front = 0;
-        Rear = Rear + 1;
+        Rear = (Rear + 1) % SIZE;
         prf_free_queue[Rear] = insert_item;
     }
 } 
@@ -27,7 +27,7 @@ int dequeue()
 {
     int last_val = prf_free_queue[Front];
     printf("Element deleted from the Queue: %d\n", prf_free_queue[Front]);
-    Front = Front + 1;
+    Front = (Front + 1) % SIZE;
     return last_val;
 
 } 

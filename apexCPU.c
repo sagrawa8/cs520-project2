@@ -188,13 +188,13 @@ void printState(cpu cpu) {
 		printf("|%5d", cpu->rat[i].valid);
 		printf("|%5d", cpu->rat[i].prf);
     	printf("|\n");
-		}
+	}
 	for(int i=10;i<array_length;i++) {
 		printf("|  R%d", cpu->rat[i].arf);
 		printf("|%5d", cpu->rat[i].valid);
 		printf("|%5d", cpu->rat[i].prf);
     	printf("|\n");
-		}
+	}
 
 	printf("\n");
 	printf(" PRF Table: ");
@@ -213,7 +213,7 @@ void printState(cpu cpu) {
 		printf("|%5d", cpu->prf[i].z);
 		printf("|%5d", cpu->prf[i].p);
     	printf("|\n");
-		}
+	}
 	for(int i=10;i<array_length;i++) {
 		printf("|  P%d", cpu->prf[i].prf);
 		printf("|%5d", cpu->prf[i].valid);
@@ -221,7 +221,7 @@ void printState(cpu cpu) {
 		printf("|%5d", cpu->prf[i].z);
 		printf("|%5d", cpu->prf[i].p);
     	printf("|\n");
-		}
+	}
 
 	printf("\n");
 	printf(" Instruction Queue: ");
@@ -280,19 +280,64 @@ void cycleCPU(cpu cpu) {
 		return;
 	}
 
-    cpu->stage[retire]=cpu->stage[fu_alu];
-
+	cpu->stage[retire].status=stage_noAction;
 	
-	cpu->stage[fu_mul3]=cpu->stage[fu_mul2];
-	cpu->stage[fu_mul2]=cpu->stage[fu_mul1];
+	if(rob_queue[front_rob].opcode == ADD ||
+	rob_queue[front_rob].opcode == ADDL ||
+	rob_queue[front_rob].opcode == SUB ||
+	rob_queue[front_rob].opcode == SUBL ||
+	rob_queue[front_rob].opcode == AND ||
+	rob_queue[front_rob].opcode == OR ||
+	rob_queue[front_rob].opcode == XOR ||
+	rob_queue[front_rob].opcode == MOVC ||
+	rob_queue[front_rob].opcode == CMP || 
+	rob_queue[front_rob].opcode == HALT) {
+		cpu->stage[retire]=cpu->stage[fu_alu];
+		cpu->stage[retire].status=stage_ready;
+		cpu->stage[fu_alu].status=stage_noAction;
+	}
+	else if(rob_queue[front_rob].opcode == MUL && cpu->stage[fu_mul3].result) {
+		cpu->stage[retire]=cpu->stage[fu_mul3];
+		cpu->stage[retire].status=stage_ready;
+		cpu->stage[fu_mul3].status=stage_noAction;
+	}
+	else if(rob_queue[front_rob].opcode == LOAD || 
+	rob_queue[front_rob].opcode == STORE) {
+		cpu->stage[retire]=cpu->stage[fu_lsa];
+		cpu->stage[retire].status=stage_ready;
+		cpu->stage[fu_lsa].status=stage_noAction;
+	}
+
+	if (cpu->stage[retire].status==stage_noAction) {
+		cpu->stage[retire].status=stage_squashed; // Nothing is ready to writeback
+		cpu->stage[retire].pc=-1;
+	}
+
+	//cpu->stage[retire].status=stage_squashed;
+
+	for(enum stage_enum fs=fu_mul1; fs<=fu_mul3; fs+=3) {
+		if (cpu->stage[fs+2].status==stage_noAction ||
+				cpu->stage[fs+2].status==stage_squashed) {
+			cpu->stage[fs+2]=cpu->stage[fs+1];
+			cpu->stage[fs+1]=cpu->stage[fs];
+			cpu->stage[fs].status=stage_noAction; // Open up for issue
+			cpu->stage[fs].instruction=0;
+			cpu->stage[fs].opcode=0;
+			cpu->stage[fs].pc=-1;
+		}
+	}
+
+
+	//cpu->stage[fu_mul3]=cpu->stage[fu_mul2];
+	//cpu->stage[fu_mul2]=cpu->stage[fu_mul1];
 	if(cpu->stage[issue_instruction].fu == fu_mul1)
-	cpu->stage[fu_mul1]=cpu->stage[issue_instruction];
+		cpu->stage[fu_mul1]=cpu->stage[issue_instruction];
 	if(cpu->stage[issue_instruction].fu == fu_lsa)
-	cpu->stage[fu_lsa]=cpu->stage[issue_instruction];
+		cpu->stage[fu_lsa]=cpu->stage[issue_instruction];
 	if(cpu->stage[issue_instruction].fu == fu_br)
-	cpu->stage[fu_br]=cpu->stage[issue_instruction];
+		cpu->stage[fu_br]=cpu->stage[issue_instruction];
 	if(cpu->stage[issue_instruction].fu == fu_alu)
-	cpu->stage[fu_alu]=cpu->stage[issue_instruction];
+		cpu->stage[fu_alu]=cpu->stage[issue_instruction];
 
 	cpu->stage[issue_instruction]=cpu->stage[rename2_dispatch];
 	cpu->stage[rename2_dispatch]=cpu->stage[decode_rename1];
@@ -313,7 +358,7 @@ void cycleCPU(cpu cpu) {
 	
 
 	// Reset the reports and status as required for all stages
-	for(int s=0;s<=decode_rename1;s++) {
+	for(int s=0;s<=retire;s++) {
 		cpu->stage[s].report[0]='\0';
 		switch (cpu->stage[s].status) {
 			case stage_squashed:
@@ -331,16 +376,13 @@ void cycleCPU(cpu cpu) {
 	if (!cpu->stop) cycle_stage(cpu,rename2_dispatch);
 	if (!cpu->stop) cycle_stage(cpu,issue_instruction);
 	if (!cpu->stop) cycle_stage(cpu,fu_alu);
-	//if(cpu->stage[issue_instruction].fu==fu_mul1)
 	if (!cpu->stop) cycle_stage(cpu,fu_mul1);
 	if (!cpu->stop) cycle_stage(cpu,fu_mul2);
 	if (!cpu->stop) cycle_stage(cpu,fu_mul3);
-	//if(cpu->stage[issue_instruction].fu==fu_lsa)
-		if (!cpu->stop) cycle_stage(cpu,fu_lsa);
-	//if(cpu->stage[issue_instruction].fu==fu_br)
-		if (!cpu->stop) cycle_stage(cpu,fu_br);
+	if (!cpu->stop) cycle_stage(cpu,fu_lsa);
+	if (!cpu->stop) cycle_stage(cpu,fu_br);
 	
-	if (!cpu->stop) cycle_stage(cpu,retire);
+	if (!cpu->stop && cpu->stage[retire].status==stage_ready) cycle_stage(cpu,retire);
 
 	if (!cpu->stop) cycle_stage(cpu,decode_rename1);
 	
@@ -380,8 +422,8 @@ void cycleCPU(cpu cpu) {
 void printStats(cpu cpu) {
 	printf("\nAPEX Simulation complete.\n");
 	printf("    Total cycles executed: %d\n",cpu->t);
-	printf("    Instructions retired: %d\n",cpu->instr_retired);
-	printf("    Instructions per Cycle (IPC): %5.3f\n",((float)cpu->instr_retired)/cpu->t);
+	printf("    Instructions retired: %d\n",cpu->instr_retired-3);
+	printf("    Instructions per Cycle (IPC): %5.3f\n",((float)cpu->instr_retired-3)/cpu->t);
 	printf("    Stop is %s\n",cpu->stop?"true":"false");
 	if (cpu->stop) {
 		printf("    Reason for stop: %s\n",cpu->abend);
@@ -528,6 +570,8 @@ void cycle_stage(cpu cpu,int stage) {
 		// cpu->stage[stage].status=stage_noAction;
 	// }
 	if (stage==retire && cpu->stage[retire].status!=stage_squashed) {
+		printf("\nin Increment");
+		printf("\n stage is : %d \n Stage status : ",stage,cpu->stage[stage].status);
 		cpu->instr_retired++;
 	}
 }

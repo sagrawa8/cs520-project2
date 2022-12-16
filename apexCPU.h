@@ -17,10 +17,13 @@ enum stage_enum {
 	rename2_dispatch,
 	issue_instruction,
 	fu_alu,
-	fu_mul1,fu_mul2,fu_mul3,
+	fu_mul1,
+	fu_mul2,
+	fu_mul3,
 	fu_lsa,
 	fu_br,
-	retire
+	retire,
+	//no_fu = 0
 };
 
 

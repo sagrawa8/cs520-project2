@@ -30,8 +30,7 @@ int isEmptyLSQ() {
 }
 
 // Adding an element
-void enQueueLSQ( int index,
-  int free,
+void enQueueLSQ( int free,
   int lsa,
   int valid,
   int tag,
@@ -82,9 +81,20 @@ void updateLSQ(int value,int dest,int address){
       lsq_queue[i].value = value;
       lsq_queue[i].value_address = address;
       lsq_queue[i].valid_address = 1;
+		}
+	}
+}
 
-		}
-		}
+void updateLSQ_Store(int valid,int op1,int store_value,int valid_address,int value_address) {
+  int array_length = sizeof(lsq_queue)/sizeof(lsq_queue[0]);
+  for(int i=0;i<array_length;i++) {
+    if(lsq_queue[i].tag == op1) {
+      lsq_queue[i].valid = 1;
+      lsq_queue[i].value = store_value;
+      lsq_queue[i].valid_address = valid_address;
+      lsq_queue[i].value_address = value_address;
+    }
+  }
 }
 
 // Display the queue
